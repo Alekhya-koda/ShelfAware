@@ -2,13 +2,18 @@ import unittest
 import os
 from unittest.mock import MagicMock, patch
 
-from fastapi.testclient import TestClient
-from fastapi import HTTPException
-from datetime import date
+# Patch JWKS retrieval before app import to avoid network calls during module load
+with patch("app.services.cognito_service.requests.get") as _mock_get:
+    _mock_get.return_value.status_code = 200
+    _mock_get.return_value.json.return_value = {"keys": []}
+    with patch.object(__import__("app.services.cognito_service", fromlist=["RoleChecker"]).RoleChecker, "__call__", return_value={}):
+        from fastapi.testclient import TestClient
+        from fastapi import HTTPException
+        from datetime import date
 
-from app.main import app
-from app.schemas.book import BookCreate, BookRead
-from app.services.book_service import BookService
+        from app.main import app
+        from app.schemas.book import BookCreate, BookRead
+        from app.services.book_service import BookService
 
 
 class TestBookRoutes(unittest.TestCase):
