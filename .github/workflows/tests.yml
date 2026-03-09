@@ -2,7 +2,12 @@ name: Tests
 
 on:
   push:
-    branches: ["main", "feature/mood-recommendation-clean"]
+    # include main and any feature branches so CI runs for your book CRUD branch
+    branches:
+      - "main"
+      - "feature/mood-recommendation-clean"
+      - "feature/bookCRUD"     # ensure new branch triggers tests
+      - "feature/*"            # wildcard covers future feature branches
   pull_request:
 
 jobs:
