@@ -8,8 +8,6 @@ from app.db.database import engine, Base
 # Import models so SQLAlchemy registers tables/relationships
 from app.models import user, book, genre, book_genre, bookshelf  # noqa: F401
 
-from app.services.synopsis_scheduler import SynopsisScheduler
-
 # Import routers (ROUTES, not models)
 from app.routes import auth, books
 from app.routes.admin import router as admin_router
@@ -49,32 +47,6 @@ app.include_router(
     prefix="/api",
     tags=["Recommendations"],
 )
-
-# Initialize and start synopsis scheduler on startup
-@app.on_event("startup")
-async def startup_event():
-    """Initialize and start the synopsis sync scheduler."""
-    try:
-        openai_api_key = os.getenv("OPENAI_API_KEY")
-        if not openai_api_key:
-            logger.warning("OPENAI_API_KEY environment variable not set. Synopsis sync disabled.")
-            return
-
-        # Initialize scheduler
-        SynopsisScheduler.initialize(openai_api_key=openai_api_key)
-
-        # Start scheduler (runs daily at midnight UTC by default)
-        SynopsisScheduler.start(hour=0, minute=0)
-
-        logger.info("Synopsis scheduler started successfully")
-    except Exception as e:
-        logger.error(f"Failed to start synopsis scheduler: {str(e)}")
-
-
-@app.on_event("shutdown")
-async def shutdown_event():
-    """Stop the scheduler on shutdown."""
-    SynopsisScheduler.stop()
 
 
 @app.get("/")
