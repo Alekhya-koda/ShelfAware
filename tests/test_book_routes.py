@@ -2,20 +2,6 @@ import unittest
 import os
 from unittest.mock import MagicMock, patch
 
-# Instead of configuring AWS credentials, completely bypass Cognito auth by patching
-# the RoleChecker dependency. This prevents any network calls and sidesteps region/env issues.
-from app.services.cognito_service import RoleChecker
-
-# patch RoleChecker.__call__ globally so authentication always succeeds
-role_patcher = patch.object(RoleChecker, "__call__", return_value={})
-role_patcher.start()
-
-# prevent any outbound HTTP call when CognitoService is instantiated (requests.get used in __init__)
-patcher = patch("app.services.cognito_service.requests.get")
-mock_get = patcher.start()
-mock_get.return_value.status_code = 200
-mock_get.return_value.json.return_value = {"keys": []}
-
 from fastapi.testclient import TestClient
 from fastapi import HTTPException
 from datetime import date
@@ -27,6 +13,25 @@ from app.services.book_service import BookService
 
 class TestBookRoutes(unittest.TestCase):
     """Integration tests for book CRUD routes."""
+
+    @classmethod
+    def setUpClass(cls):
+        """Set up class-level patches for Cognito auth and jwks retrieval."""
+        from app.services.cognito_service import RoleChecker
+
+        cls.role_patcher = patch.object(RoleChecker, "__call__", return_value={})
+        cls.role_patcher.start()
+
+        cls.requests_patcher = patch("app.services.cognito_service.requests.get")
+        cls.mock_get = cls.requests_patcher.start()
+        cls.mock_get.return_value.status_code = 200
+        cls.mock_get.return_value.json.return_value = {"keys": []}
+
+    @classmethod
+    def tearDownClass(cls):
+        """Clean up class-level patches."""
+        cls.role_patcher.stop()
+        cls.requests_patcher.stop()
 
     def setUp(self):
         """Set up test client and mocks."""
