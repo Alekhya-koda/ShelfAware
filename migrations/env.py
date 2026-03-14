@@ -8,11 +8,10 @@ from app.models.user import User
 from app.models.book import Book
 from app.models.bookshelf import Bookshelf
 from app.models.genre import Genre
-from app.models.book_genre import book_genre
+from app.models.book_genre import BookGenre
 from app.models.author import Author
 from app.models.book_author import book_author
 from app.models.review import Review
-from app.models.password_reset import PasswordReset
 from app.models.user_profile import UserProfile
 from app.models.mood import Mood
 
