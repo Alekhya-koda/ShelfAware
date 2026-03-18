@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, ConfigDict    
 from typing import Optional, Literal, Dict
 from datetime import datetime, date
 
@@ -26,8 +26,7 @@ class BookshelfRead(BaseModel):
     # Optional field if you later want to return saved synopsis from Bookshelf row
     synopsis: Optional[str] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class BookshelfTimelineItem(BaseModel):
@@ -41,8 +40,7 @@ class BookshelfTimelineItem(BaseModel):
     date_finished: Optional[datetime] = None
     updated_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class BookshelfStats(BaseModel):
