@@ -1,6 +1,7 @@
 #Code 3
 import logging
 import os
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, Response
 
 from app.db.database import engine, Base
@@ -30,10 +31,35 @@ logger = logging.getLogger(__name__)
 # Create tables on startup
 Base.metadata.create_all(bind=engine)
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Lifecycle events for the FastAPI application."""
+    # Startup: Initialize and start synopsis scheduler
+    try:
+        openai_api_key = os.getenv("OPENAI_API_KEY")
+        if openai_api_key:
+            # Initialize scheduler
+            SynopsisScheduler.initialize(openai_api_key=openai_api_key)
+            # Start scheduler (runs daily at midnight UTC by default)
+            SynopsisScheduler.start(hour=0, minute=0)
+            logger.info("Synopsis scheduler started successfully")
+        else:
+            logger.warning("OPENAI_API_KEY environment variable not set. Synopsis sync disabled.")
+    except Exception as e:
+        logger.error(f"Failed to start synopsis scheduler: {str(e)}")
+
+    yield
+
+    # Shutdown: Stop the scheduler
+    SynopsisScheduler.stop()
+    logger.info("Synopsis scheduler stopped")
+
+
 app = FastAPI(
     title="ShelfAware API",
     description="An API for managing books and integrating with Ollama and ChromaDB",
     version="0.1.0",
+    lifespan=lifespan,
 )
 
 # Include routes
@@ -49,32 +75,6 @@ app.include_router(
     prefix="/api",
     tags=["Recommendations"],
 )
-
-# Initialize and start synopsis scheduler on startup
-@app.on_event("startup")
-async def startup_event():
-    """Initialize and start the synopsis sync scheduler."""
-    try:
-        openai_api_key = os.getenv("OPENAI_API_KEY")
-        if not openai_api_key:
-            logger.warning("OPENAI_API_KEY environment variable not set. Synopsis sync disabled.")
-            return
-
-        # Initialize scheduler
-        SynopsisScheduler.initialize(openai_api_key=openai_api_key)
-
-        # Start scheduler (runs daily at midnight UTC by default)
-        SynopsisScheduler.start(hour=0, minute=0)
-
-        logger.info("Synopsis scheduler started successfully")
-    except Exception as e:
-        logger.error(f"Failed to start synopsis scheduler: {str(e)}")
-
-
-@app.on_event("shutdown")
-async def shutdown_event():
-    """Stop the scheduler on shutdown."""
-    SynopsisScheduler.stop()
 
 
 @app.get("/")

@@ -1,19 +1,35 @@
-name: Tests
+name: Python CI
 
 on:
   push:
     branches: ["main", "feature/mood-recommendation-clean"]
   pull_request:
+    branches: ["main"]
 
 jobs:
-  unit-tests:
+  test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+
+      - name: Set Up Python
+        uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+          cache: "pip"
+
       - name: Install dependencies
-        run: pip install -r requirements.txt
-      - name: Run unit tests
-        run: python -m unittest discover -s tests -p 'test_*.py'
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run tests with pytest
+        env:
+          COGNITO_REGION: us-east-1
+          COGNITO_USER_POOL_ID: dummy_pool
+          COGNITO_CLIENT_ID: dummy_client
+          COGNITO_CLIENT_SECRET: dummy_secret
+          OPENAI_API_KEY: ""
+          LLM_PROVIDER: OLLAMA
+        run: |
+          python -m pytest -v -s

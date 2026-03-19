@@ -65,5 +65,4 @@ class BookRead(BookBase):
     book_id: str
     created_at: datetime
 
-    class Config:
-        from_attributes = True  # <-- critical for SQLAlchemy
+    model_config = ConfigDict(from_attributes=True)
