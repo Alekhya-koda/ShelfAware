@@ -35,11 +35,11 @@ def mock_chroma_collection():
 
 # Fixture to provide a correctly mocked ChromaService instance
 @pytest.fixture
-def chroma_service_for_sync(mock_chroma_client, mock_chroma_collection):
+def chroma_service_mocked(mock_chroma_client, mock_chroma_collection):
     # Bypass the original __init__ to avoid complex setup with LLM clients
     with patch.object(ChromaService, '__init__', lambda s, llm_provider_override=None: None):
         service = ChromaService()
-        # Manually attach the mocks needed for the sync tests
+        # Manually attach the mocks needed for the tests
         service.client = mock_chroma_client
         service.collection = mock_chroma_collection
         yield service
@@ -76,14 +76,14 @@ def create_mock_book(book_id: str, title: str, abstract: Optional[str]):
 # --- Tests for sync_books ---
 
 def test_sync_books_no_books_in_db_or_chroma(
-    chroma_service_for_sync, mock_db_session, mock_book_service, mock_chroma_collection
+    chroma_service_mocked, mock_db_session, mock_book_service, mock_chroma_collection
 ):
     # Arrange
     mock_book_service.get_books.return_value = []
     mock_chroma_collection.get.return_value = {"ids": []}
 
     # Act
-    result = chroma_service_for_sync.sync_books()
+    result = chroma_service_mocked.sync_books()
 
     # Assert
     assert result == {"upserted": 0, "deleted": 0}
@@ -93,7 +93,7 @@ def test_sync_books_no_books_in_db_or_chroma(
     mock_chroma_collection.delete.assert_not_called()
 
 def test_sync_books_add_new_books_to_chroma(
-    chroma_service_for_sync, mock_db_session, mock_book_service, mock_chroma_collection
+    chroma_service_mocked, mock_db_session, mock_book_service, mock_chroma_collection
 ):
     # Arrange
     book_id_1 = str(uuid.uuid4())
@@ -106,7 +106,7 @@ def test_sync_books_add_new_books_to_chroma(
     mock_chroma_collection.get.return_value = {"ids": []}
 
     # Act
-    result = chroma_service_for_sync.sync_books()
+    result = chroma_service_mocked.sync_books()
 
     # Assert
     assert result == {"upserted": 2, "deleted": 0}
@@ -121,7 +121,7 @@ def test_sync_books_add_new_books_to_chroma(
     mock_chroma_collection.delete.assert_not_called()
 
 def test_sync_books_delete_removed_books_from_chroma(
-    chroma_service_for_sync, mock_db_session, mock_book_service, mock_chroma_collection
+    chroma_service_mocked, mock_db_session, mock_book_service, mock_chroma_collection
 ):
     # Arrange
     book_id_1 = str(uuid.uuid4())
@@ -130,7 +130,7 @@ def test_sync_books_delete_removed_books_from_chroma(
     mock_chroma_collection.get.return_value = {"ids": [book_id_1, book_id_2]}
 
     # Act
-    result = chroma_service_for_sync.sync_books()
+    result = chroma_service_mocked.sync_books()
 
     # Assert
     assert result == {"upserted": 0, "deleted": 2}
@@ -143,7 +143,7 @@ def test_sync_books_delete_removed_books_from_chroma(
     assert set(called_ids) == {book_id_1, book_id_2}
 
 def test_sync_books_mix_of_adds_updates_deletions(
-    chroma_service_for_sync, mock_db_session, mock_book_service, mock_chroma_collection
+    chroma_service_mocked, mock_db_session, mock_book_service, mock_chroma_collection
 ):
     # Arrange
     book_id_add = str(uuid.uuid4())
@@ -161,7 +161,7 @@ def test_sync_books_mix_of_adds_updates_deletions(
     mock_chroma_collection.get.return_value = {"ids": [book_id_update, book_id_delete]}
 
     # Act
-    result = chroma_service_for_sync.sync_books()
+    result = chroma_service_mocked.sync_books()
 
     # Assert
     assert result == {"upserted": 2, "deleted": 1}
@@ -179,7 +179,7 @@ def test_sync_books_mix_of_adds_updates_deletions(
     mock_chroma_collection.delete.assert_called_once_with(ids=[book_id_delete])
 
 def test_sync_books_with_limit_parameter(
-    chroma_service_for_sync, mock_db_session, mock_book_service, mock_chroma_collection
+    chroma_service_mocked, mock_db_session, mock_book_service, mock_chroma_collection
 ):
     # Arrange
     db_books = [create_mock_book(str(uuid.uuid4()), f"Book {i}", f"Abstract {i}") for i in range(3)]
@@ -187,7 +187,7 @@ def test_sync_books_with_limit_parameter(
     mock_chroma_collection.get.return_value = {"ids": [str(b.book_id) for b in db_books]} # Chroma has all books
 
     # Act
-    result = chroma_service_for_sync.sync_books(limit=2)
+    result = chroma_service_mocked.sync_books(limit=2)
 
     # Assert
     assert result == {"upserted": 2, "deleted": 1} # Upserts 2, deletes the one not in the limited set
@@ -195,17 +195,72 @@ def test_sync_books_with_limit_parameter(
     mock_chroma_collection.delete.assert_called_once_with(ids=[str(db_books[2].book_id)])
 
 def test_sync_books_exception_handling(
-    chroma_service_for_sync, mock_db_session, mock_book_service
+    chroma_service_mocked, mock_db_session, mock_book_service
 ):
     # Arrange
     mock_book_service.get_books.side_effect = Exception("Database error")
 
     # Act & Assert
     with pytest.raises(Exception, match="Database error"):
-        chroma_service_for_sync.sync_books()
+        chroma_service_mocked.sync_books()
 
     # Verify session was closed even after exception
     mock_db_session.close.assert_called_once()
+
+# --- Tests for search_books ---
+
+def test_search_books_success(chroma_service_mocked):
+    # Arrange
+    mock_collection = chroma_service_mocked.collection
+    mock_collection.query.return_value = {
+        "ids": [["id1", "id2"]],
+        "metadatas": [[{"title": "Book 1", "description": "Desc 1"}, {"title": "Book 2", "description": "Desc 2"}]],
+        "distances": [[0.1, 0.2]]
+    }
+    
+    # Act
+    result = chroma_service_mocked.search_books("test query", n_results=2, distance_threshold=0.5)
+    
+    # Assert
+    assert len(result) == 2
+    assert result[0]["id"] == "id1"
+    assert result[0]["title"] == "Book 1"
+    assert result[0]["distance"] == 0.1
+    mock_collection.query.assert_called_once_with(query_texts=["test query"], n_results=2)
+
+def test_search_books_no_results(chroma_service_mocked):
+    # Arrange
+    mock_collection = chroma_service_mocked.collection
+    mock_collection.query.return_value = {"ids": [], "metadatas": [], "distances": []}
+    
+    # Act
+    result = chroma_service_mocked.search_books("test query")
+    
+    # Assert
+    assert result == []
+
+def test_search_books_filter_by_distance(chroma_service_mocked):
+    # Arrange
+    mock_collection = chroma_service_mocked.collection
+    mock_collection.query.return_value = {
+        "ids": [["id1", "id2", "id3"]],
+        "metadatas": [
+            [
+                {"title": "Book 1", "description": "Desc 1"},
+                {"title": "Book 2", "description": "Desc 2"},
+                {"title": "Book 3", "description": "Desc 3"}
+            ]
+        ],
+        "distances": [[0.3, 0.8, 0.1]]  # 0.8 > 0.5 threshold
+    }
+    
+    # Act
+    result = chroma_service_mocked.search_books("test query", distance_threshold=0.5)
+    
+    # Assert
+    assert len(result) == 2  # id1 and id3
+    assert result[0]["id"] == "id1"
+    assert result[1]["id"] == "id3"
 
 # --- Tests for ChromaService Constructor Conflict Handling ---
 
@@ -302,7 +357,7 @@ def test_initialize_llm_clients_unsupported_provider():
 # --- Additional tests for Sync Logic Branch Coverage ---
 
 def test_sync_books_no_deletions_needed(
-    chroma_service_for_sync, mock_db_session, mock_book_service, mock_chroma_collection
+    chroma_service_mocked, mock_db_session, mock_book_service, mock_chroma_collection
 ):
     # Arrange: DB and Chroma have the exact same book
     book_id = str(uuid.uuid4())
@@ -311,21 +366,21 @@ def test_sync_books_no_deletions_needed(
     mock_chroma_collection.get.return_value = {"ids": [book_id]}
 
     # Act
-    result = chroma_service_for_sync.sync_books()
+    result = chroma_service_mocked.sync_books()
 
     # Assert
     assert result == {"upserted": 1, "deleted": 0}
     mock_chroma_collection.delete.assert_not_called()
 
 def test_sync_books_successful_session_closure(
-    chroma_service_for_sync, mock_db_session, mock_book_service, mock_chroma_collection
+    chroma_service_mocked, mock_db_session, mock_book_service, mock_chroma_collection
 ):
     # Arrange
     mock_book_service.get_books.return_value = []
     mock_chroma_collection.get.return_value = {"ids": []}
 
     # Act
-    chroma_service_for_sync.sync_books()
+    chroma_service_mocked.sync_books()
 
     # Assert
     mock_db_session.close.assert_called_once()
