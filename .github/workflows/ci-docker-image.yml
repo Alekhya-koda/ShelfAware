@@ -44,8 +44,26 @@ jobs:
         run: |
           python -m pytest -v -s
 
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set Up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install Bandit
+        run: pip install bandit
+
+      - name: Security scan with Bandit
+        run: |
+          bandit -r app/ scripts/ -ll -ii
+
   build-and-push:
-    needs: test
+    needs: [test, security]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
