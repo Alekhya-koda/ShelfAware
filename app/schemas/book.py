@@ -1,6 +1,6 @@
 #Code 2
 # app/schemas/book.py
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 from typing import Optional
 from datetime import datetime, date
 
@@ -21,7 +21,9 @@ class BookUpdate(BaseModel):
     subtitle: Optional[str] = None
     cover_image_url: Optional[str] = None
     abstract: Optional[str] = None
-    page_count: Optional[int] = None
+    #page_count: Optional[int] = None
+    #newly added to replade statement above
+    page_count: Optional[int] = Field(default=None, gt=0)
     published_date: Optional[date] = None
     CommunitySynopsis: Optional[str] = None
 
