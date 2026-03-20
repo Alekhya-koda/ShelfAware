@@ -137,17 +137,17 @@ class ChromaService:
         if not search_results:
             return f"No similar books found for the query: '{query}'."
 
-        prompt_template = (
-                f'The user queried: "{query}". Below is a list of search results, where each item is a dictionary containing book information. '
-                f"Each dictionary has 'title' and 'description' keys. "
-                f"Your task is to summarize these {len(search_results)} books. "
-                f"For each book, identify its title and provide a brief, relevant summary of its description, highlighting aspects that directly relate to the user's query. "
-                f"Present the summary in a clear, easy-to-read natural language format, not as a list of dictionaries. The overall summary should be concise, ideally under 100 words. \n\n"
-                f"Search Results (Python list of dictionaries):\n{search_results}\n\n"
-                f"Please provide your concise summary now."
-            )
-
         try:
+            prompt_template = (
+                    f'The user queried: "{query}". Below is a list of search results, where each item is a dictionary containing book information. '
+                    f"Each dictionary has 'title' and 'description' keys. "
+                    f"Your task is to summarize these {len(search_results)} books. "
+                    f"For each book, identify its title and provide a brief, relevant summary of its description, highlighting aspects that directly relate to the user's query. "
+                    f"Present the summary in a clear, easy-to-read natural language format, not as a list of dictionaries. The overall summary should be concise, ideally under 100 words. \n\n"
+                    f"Search Results (Python list of dictionaries):\n{search_results}\n\n"
+                    f"Please provide your concise summary now."
+                )
+
             if self.llm_provider == "OPENAI":
                 response = self.llm_generator_client.chat.completions.create(
                     model=self.llm_model_for_generation,
