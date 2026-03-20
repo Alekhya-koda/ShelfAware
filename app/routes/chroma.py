@@ -43,7 +43,7 @@ def get_chroma_service(
         )
 
 
-@router.post("/sync-from-db", status_code=status.HTTP_200_OK)
+@router.post("/vector/sync", status_code=status.HTTP_200_OK)
 def sync_chromadb_from_db(
     limit: int = 30,
     db: Session = Depends(get_db),
@@ -69,7 +69,7 @@ def sync_chromadb_from_db(
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to synchronize ChromaDB: {str(e)}")
 
 
-@router.get("/similarities")
+@router.get("/vector/search")
 def search_books_in_chromadb(
     query: str,
     distance_threshold: float = 0.9,
@@ -88,7 +88,7 @@ def search_books_in_chromadb(
     return {"query": query, "response": results}
 
 
-@router.get("/summary")
+@router.get("/vector/summary")
 def ai_search_books_in_chromadb(
     query: str,
     distance_threshold: float = 0.9,
@@ -108,7 +108,7 @@ def ai_search_books_in_chromadb(
     response = chroma_service.generate_natural_language_response(query, results)
     return {"query": query, "response": response}
 
-@router.delete("/{book_id}")
+@router.delete("/vector/{book_id}")
 def delete_book(
     book_id: str,
     current_user: dict = Depends(get_current_user), # Added authentication

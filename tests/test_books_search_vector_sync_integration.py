@@ -64,7 +64,7 @@ def mock_chroma_service_in_route():
         MockChromaService.return_value = mock_instance
         yield MockChromaService # Return the CLASS mock to check constructor calls
 
-# --- Tests for /books/search/sync-from-db Endpoint ---
+# --- Tests for /books/search/vector/sync Endpoint ---
 
 def test_sync_from_db_endpoint_success(client, mock_chroma_service_in_route):
     # Arrange
@@ -73,14 +73,14 @@ def test_sync_from_db_endpoint_success(client, mock_chroma_service_in_route):
     mock_instance.llm_provider = "OPENAI"
     
     # Act
-    response = client.post("/books/search/sync-from-db?limit=50")
+    response = client.post("/books/search/vector/sync?limit=10")
     
     # Assert
     assert response.status_code == 200
     assert response.json() == {
         "message": "ChromaDB synchronization completed using OPENAI. Upserted: 10 books, Deleted: 5 books."
     }
-    mock_instance.sync_books.assert_called_once_with(limit=50)
+    mock_instance.sync_books.assert_called_once_with(limit=10)
 
 def test_sync_from_db_endpoint_exception(client, mock_chroma_service_in_route):
     # Arrange
@@ -88,7 +88,7 @@ def test_sync_from_db_endpoint_exception(client, mock_chroma_service_in_route):
     mock_instance.sync_books.side_effect = Exception("Sync failed")
     
     # Act
-    response = client.post("/books/search/sync-from-db")
+    response = client.post("/books/search/vector/sync")
     
     # Assert
     assert response.status_code == 500
@@ -103,7 +103,7 @@ def test_sync_from_db_endpoint_unauthorized(client):
     app.dependency_overrides[get_current_user] = mock_unauthorized
     
     # Act
-    response = client.post("/books/search/sync-from-db")
+    response = client.post("/books/search/vector/sync")
     
     # Assert
     assert response.status_code == 401
@@ -118,7 +118,7 @@ def test_get_chroma_service_fallback_to_ollama(client, mock_chroma_service_in_ro
     # Arrange: Mock env vars so OPENAI is default but key is missing
     with patch.dict(os.environ, {"LLM_PROVIDER": "OPENAI", "OPENAI_API_KEY": ""}):
         # Act
-        client.post("/books/search/sync-from-db")
+        client.post("/books/search/vector/sync")
         
         # Assert: Check if ChromaService was instantiated with OLLAMA
         mock_chroma_service_in_route.assert_called()
@@ -129,7 +129,7 @@ def test_get_chroma_service_explicit_ollama(client, mock_chroma_service_in_route
     # Arrange: Mock env vars for OLLAMA
     with patch.dict(os.environ, {"LLM_PROVIDER": "OLLAMA"}):
         # Act
-        client.post("/books/search/sync-from-db")
+        client.post("/books/search/vector/sync")
         
         # Assert
         mock_chroma_service_in_route.assert_called()
@@ -140,7 +140,7 @@ def test_get_chroma_service_initialization_failure(client):
     # Arrange: Mock ChromaService to raise an exception during instantiation
     with patch('app.routes.chroma.ChromaService', side_effect=Exception("Init failed")):
         # Act
-        response = client.post("/books/search/sync-from-db")
+        response = client.post("/books/search/vector/sync")
         
         # Assert
         assert response.status_code == 500
@@ -153,7 +153,7 @@ def test_sync_from_db_endpoint_query_param_override(client, mock_chroma_service_
     mock_instance.llm_provider = "OLLAMA"
     
     # Act
-    response = client.post("/books/search/sync-from-db?llm_provider=OLLAMA")
+    response = client.post("/books/search/vector/sync?llm_provider=OLLAMA")
     
     # Assert
     assert response.status_code == 200

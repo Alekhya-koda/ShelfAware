@@ -38,52 +38,55 @@ def client():
         yield c
     app.dependency_overrides.clear()
 
-# --- Integration Tests for /books/search/similarities Endpoint ---
+# --- Integration Tests for /books/search/vector/summary Endpoint ---
 
-def test_search_similarities_endpoint_success(client, mock_chroma_service):
+def test_search_summary_endpoint_success(client, mock_chroma_service):
     # Arrange
     mock_instance = mock_chroma_service.return_value
     mock_instance.search_books.return_value = [
         {"id": "1", "title": "Test Book", "description": "Test Desc", "distance": 0.1}
     ]
+    mock_instance.generate_natural_language_response.return_value = "This is an AI generated summary of the search results."
     
     # Act
-    response = client.get("/books/search/similarities?query=test+book")
+    response = client.get("/books/search/vector/summary?query=test+book")
     
     # Assert
     assert response.status_code == 200
     data = response.json()
     assert data["query"] == "test book"
-    assert len(data["response"]) == 1
-    assert data["response"][0]["title"] == "Test Book"
+    assert "summary" in data["response"].lower() or "ai" in data["response"].lower()
+    assert data["response"] == "This is an AI generated summary of the search results."
+    mock_instance.generate_natural_language_response.assert_called_once()
 
-def test_search_similarities_endpoint_no_results(client, mock_chroma_service):
+def test_search_summary_endpoint_no_results(client, mock_chroma_service):
     # Arrange
     mock_instance = mock_chroma_service.return_value
     mock_instance.search_books.return_value = []
     
     # Act
-    response = client.get("/books/search/similarities?query=nonexistent")
+    response = client.get("/books/search/vector/summary?query=nonexistent")
     
     # Assert
     assert response.status_code == 404
     assert "No similar books found" in response.json()["detail"]
 
-def test_search_similarities_endpoint_with_parameters(client, mock_chroma_service):
+def test_search_summary_endpoint_with_parameters(client, mock_chroma_service):
     # Arrange
     mock_instance = mock_chroma_service.return_value
     mock_instance.search_books.return_value = [
         {"id": "1", "title": "Book", "description": "Desc", "distance": 0.2}
     ]
+    mock_instance.generate_natural_language_response.return_value = "Summary"
     
     # Act
-    response = client.get("/books/search/similarities?query=test&distance_threshold=0.8&llm_provider=OLLAMA")
+    response = client.get("/books/search/vector/summary?query=test&distance_threshold=0.8&llm_provider=OLLAMA")
     
     # Assert
     assert response.status_code == 200
     mock_instance.search_books.assert_called_once_with("test", distance_threshold=0.8)
 
-def test_search_similarities_endpoint_unauthorized(client):
+def test_search_summary_endpoint_unauthorized(client):
     # Arrange: Override to simulate unauthorized
     from fastapi import HTTPException
     async def mock_unauthorized():
@@ -92,18 +95,8 @@ def test_search_similarities_endpoint_unauthorized(client):
     app.dependency_overrides[get_current_user] = mock_unauthorized
     
     # Act
-    response = client.get("/books/search/similarities?query=test")
+    response = client.get("/books/search/vector/summary?query=test")
     
     # Assert
     assert response.status_code == 401
     app.dependency_overrides.clear()
-
-def test_search_similarities_endpoint_service_initialization_failure(client):
-    # Arrange: Mock ChromaService to fail
-    with patch('app.routes.chroma.ChromaService', side_effect=Exception("Init failed")):
-        # Act
-        response = client.get("/books/search/similarities?query=test")
-        
-        # Assert
-        assert response.status_code == 500
-        assert "Failed to initialize ChromaDB service" in response.json()["detail"]

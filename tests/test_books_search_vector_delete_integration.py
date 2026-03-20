@@ -38,55 +38,34 @@ def client():
         yield c
     app.dependency_overrides.clear()
 
-# --- Integration Tests for /books/search/summary Endpoint ---
+# --- Integration Tests for DELETE /books/search/vector/{book_id} Endpoint ---
 
-def test_search_summary_endpoint_success(client, mock_chroma_service):
+def test_delete_book_endpoint_success(client, mock_chroma_service):
     # Arrange
     mock_instance = mock_chroma_service.return_value
-    mock_instance.search_books.return_value = [
-        {"id": "1", "title": "Test Book", "description": "Test Desc", "distance": 0.1}
-    ]
-    mock_instance.generate_natural_language_response.return_value = "This is an AI generated summary of the search results."
+    mock_instance.delete_book.return_value = None
     
     # Act
-    response = client.get("/books/search/summary?query=test+book")
+    response = client.delete("/books/search/vector/test_id")
     
     # Assert
     assert response.status_code == 200
-    data = response.json()
-    assert data["query"] == "test book"
-    assert "summary" in data["response"].lower() or "ai" in data["response"].lower()
-    assert data["response"] == "This is an AI generated summary of the search results."
-    mock_instance.generate_natural_language_response.assert_called_once()
+    assert response.json() == {"message": "Book with ID 'test_id' deleted from ChromaDB successfully."}
+    mock_instance.delete_book.assert_called_once_with("test_id")
 
-def test_search_summary_endpoint_no_results(client, mock_chroma_service):
+def test_delete_book_endpoint_failure(client, mock_chroma_service):
     # Arrange
     mock_instance = mock_chroma_service.return_value
-    mock_instance.search_books.return_value = []
+    mock_instance.delete_book.side_effect = Exception("Delete failed")
     
     # Act
-    response = client.get("/books/search/summary?query=nonexistent")
+    response = client.delete("/books/search/vector/error_id")
     
     # Assert
-    assert response.status_code == 404
-    assert "No similar books found" in response.json()["detail"]
+    assert response.status_code == 500
+    assert "Failed to delete book from ChromaDB: Delete failed" in response.json()["detail"]
 
-def test_search_summary_endpoint_with_parameters(client, mock_chroma_service):
-    # Arrange
-    mock_instance = mock_chroma_service.return_value
-    mock_instance.search_books.return_value = [
-        {"id": "1", "title": "Book", "description": "Desc", "distance": 0.2}
-    ]
-    mock_instance.generate_natural_language_response.return_value = "Summary"
-    
-    # Act
-    response = client.get("/books/search/summary?query=test&distance_threshold=0.8&llm_provider=OLLAMA")
-    
-    # Assert
-    assert response.status_code == 200
-    mock_instance.search_books.assert_called_once_with("test", distance_threshold=0.8)
-
-def test_search_summary_endpoint_unauthorized(client):
+def test_delete_book_endpoint_unauthorized(client):
     # Arrange: Override to simulate unauthorized
     from fastapi import HTTPException
     async def mock_unauthorized():
@@ -95,7 +74,7 @@ def test_search_summary_endpoint_unauthorized(client):
     app.dependency_overrides[get_current_user] = mock_unauthorized
     
     # Act
-    response = client.get("/books/search/summary?query=test")
+    response = client.delete("/books/search/vector/test_id")
     
     # Assert
     assert response.status_code == 401
