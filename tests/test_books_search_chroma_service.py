@@ -323,6 +323,28 @@ def test_initialize_llm_clients_openai_no_key():
         with pytest.raises(ValueError, match="OPENAI_API_KEY environment variable not set"):
             service._initialize_llm_clients()
 
+def test_initialize_llm_clients_openai_config():
+    # Arrange
+    with patch.dict(os.environ, {
+        "LLM_PROVIDER": "OPENAI",
+        "OPENAI_API_KEY": "test-key",
+        "OPENAI_EMBEDDING_MODEL": "test-emb",
+        "OPENAI_LLM_MODEL": "test-llm"
+    }):
+        service = ChromaService.__new__(ChromaService)
+        service.llm_provider = "OPENAI"
+        
+        with patch('app.services.chroma_service.embedding_functions.OpenAIEmbeddingFunction') as MockEmb, \
+             patch('app.services.chroma_service.openai.Client') as MockClient:
+            
+            # Act
+            service._initialize_llm_clients()
+            
+            # Assert
+            MockEmb.assert_called_once_with(api_key="test-key", model_name="test-emb")
+            MockClient.assert_called_once_with(api_key="test-key")
+            assert service.llm_model_for_generation == "test-llm"
+
 def test_initialize_llm_clients_ollama_config():
     # Arrange
     with patch.dict(os.environ, {
@@ -384,6 +406,42 @@ def test_sync_books_successful_session_closure(
 
     # Assert
     mock_db_session.close.assert_called_once()
+
+# --- Tests for add_book and delete_book ---
+
+def test_add_book_success(chroma_service_mocked, mock_chroma_collection):
+    # Act
+    chroma_service_mocked.add_book("id1", "Title", "Abstract")
+    
+    # Assert
+    mock_chroma_collection.upsert.assert_called_once_with(
+        ids=["id1"],
+        documents=["Title. Abstract"],
+        metadatas=[{"title": "Title", "description": "Abstract"}]
+    )
+
+def test_add_book_no_abstract(chroma_service_mocked, mock_chroma_collection):
+    # Act
+    chroma_service_mocked.add_book("id1", "Title", None)
+    
+    # Assert
+    mock_chroma_collection.upsert.assert_called_once_with(
+        ids=["id1"],
+        documents=["Title"],
+        metadatas=[{"title": "Title", "description": ""}]
+    )
+
+def test_delete_book_success(chroma_service_mocked, mock_chroma_collection):
+    # Arrange
+    mock_chroma_collection.name = "books"
+    mock_chroma_collection.get.side_effect = [{"ids": ["id1"]}, {"ids": []}]
+    
+    # Act
+    chroma_service_mocked.delete_book("id1")
+    
+    # Assert
+    mock_chroma_collection.delete.assert_called_once_with(ids=["id1"])
+    assert mock_chroma_collection.get.call_count == 2
 
 # --- Tests for search_books Edge Cases ---
 
