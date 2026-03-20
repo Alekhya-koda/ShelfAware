@@ -384,3 +384,126 @@ def test_sync_books_successful_session_closure(
 
     # Assert
     mock_db_session.close.assert_called_once()
+
+# --- Tests for search_books Edge Cases ---
+
+def test_search_books_missing_metadata_keys(chroma_service_mocked):
+    # Arrange
+    mock_collection = chroma_service_mocked.collection
+    mock_collection.query.return_value = {
+        "ids": [["id1"]],
+        "metadatas": [[{}]], # Empty metadata
+        "distances": [[0.1]]
+    }
+    
+    # Act
+    result = chroma_service_mocked.search_books("test query")
+    
+    # Assert
+    # The current code uses **metadata, which won't include title/description if missing
+    assert result[0]["id"] == "id1"
+    assert "title" not in result[0]
+    assert "description" not in result[0]
+
+# --- Tests for generate_natural_language_response ---
+
+def test_generate_natural_language_response_no_results(chroma_service_mocked):
+    # Act
+    result = chroma_service_mocked.generate_natural_language_response("query", [])
+    
+    # Assert
+    assert result == "No similar books found for the query: 'query'."
+
+def test_generate_natural_language_response_openai_success(chroma_service_mocked):
+    # Arrange
+    chroma_service_mocked.llm_provider = "OPENAI"
+    chroma_service_mocked.llm_model_for_generation = "gpt-4"
+    mock_client = Mock()
+    chroma_service_mocked.llm_generator_client = mock_client
+    
+    mock_response = Mock()
+    mock_response.choices = [Mock(message=Mock(content="Mocked summary"))]
+    mock_client.chat.completions.create.return_value = mock_response
+    
+    search_results = [{"title": "Book 1", "description": "Desc 1"}]
+    
+    # Act
+    result = chroma_service_mocked.generate_natural_language_response("test query", search_results)
+    
+    # Assert
+    assert result == "Mocked summary"
+    mock_client.chat.completions.create.assert_called_once()
+
+def test_generate_natural_language_response_ollama_success(chroma_service_mocked):
+    # Arrange
+    chroma_service_mocked.llm_provider = "OLLAMA"
+    chroma_service_mocked.llm_model_for_generation = "gemma"
+    mock_client = Mock()
+    chroma_service_mocked.llm_generator_client = mock_client
+    
+    mock_client.chat.return_value = {"message": {"content": "Mocked Ollama summary"}}
+    
+    search_results = [{"title": "Book 1", "description": "Desc 1"}]
+    
+    # Act
+    result = chroma_service_mocked.generate_natural_language_response("test query", search_results)
+    
+    # Assert
+    assert result == "Mocked Ollama summary"
+    mock_client.chat.assert_called_once()
+
+def test_generate_natural_language_response_openai_error(chroma_service_mocked):
+    # Arrange
+    chroma_service_mocked.llm_provider = "OPENAI"
+    chroma_service_mocked.llm_model_for_generation = "gpt-4"
+    mock_client = Mock()
+    chroma_service_mocked.llm_generator_client = mock_client
+    mock_client.chat.completions.create.side_effect = Exception("OpenAI API error")
+    
+    search_results = [{"title": "Book 1", "description": "Desc 1"}]
+    
+    # Act
+    result = chroma_service_mocked.generate_natural_language_response("test query", search_results)
+    
+    # Assert
+    assert "Error generating summary with OpenAI: OpenAI API error" in result
+
+def test_generate_natural_language_response_ollama_error(chroma_service_mocked):
+    # Arrange
+    chroma_service_mocked.llm_provider = "OLLAMA"
+    chroma_service_mocked.llm_model_for_generation = "gemma"
+    mock_client = Mock()
+    chroma_service_mocked.llm_generator_client = mock_client
+    mock_client.chat.side_effect = Exception("Ollama error")
+    
+    search_results = [{"title": "Book 1", "description": "Desc 1"}]
+    
+    # Act
+    result = chroma_service_mocked.generate_natural_language_response("test query", search_results)
+    
+    # Assert
+    assert "Error generating summary with Ollama: Ollama error" in result
+
+def test_generate_natural_language_response_unsupported_provider_case(chroma_service_mocked):
+    # Arrange
+    chroma_service_mocked.llm_provider = "UNKNOWN"
+    search_results = [{"title": "Book 1", "description": "Desc 1"}]
+    
+    # Act
+    result = chroma_service_mocked.generate_natural_language_response("query", search_results)
+    
+    # Assert
+    assert result is None
+
+def test_generate_natural_language_response_unsupported_provider_exception(chroma_service_mocked):
+    # Arrange
+    chroma_service_mocked.llm_provider = "UNKNOWN"
+    class ErrorRaiser:
+        def __len__(self): raise RuntimeError("Custom error")
+        def __bool__(self): return True
+    
+    # Act
+    result = chroma_service_mocked.generate_natural_language_response("query", ErrorRaiser())
+    
+    # Assert
+    assert "Error generating summary with unsupported LLM_PROVIDER: UNKNOWN - Custom error" in result
