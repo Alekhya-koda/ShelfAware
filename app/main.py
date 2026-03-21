@@ -8,7 +8,10 @@ from app.db.database import engine, Base
 
 # Import models so SQLAlchemy registers tables/relationships
 from app.models import user, book, genre, book_genre, bookshelf  # noqa: F401
-from app.services.synopsis_scheduler import SynopsisScheduler
+try:
+    from app.services.synopsis_scheduler import SynopsisScheduler
+except ImportError:
+    SynopsisScheduler = None
 
 # Import routers (ROUTES, not models)
 from app.routes import auth, books, chatbot
@@ -36,7 +39,9 @@ async def lifespan(app: FastAPI):
     # Startup: Initialize and start synopsis scheduler
     try:
         openai_api_key = os.getenv("OPENAI_API_KEY")
-        if openai_api_key:
+        if SynopsisScheduler is None:
+            logger.warning("Synopsis scheduler module not available. Synopsis sync disabled.")
+        elif openai_api_key:
             # Initialize scheduler
             SynopsisScheduler.initialize(openai_api_key=openai_api_key)
             # Start scheduler (runs daily at midnight UTC by default)
@@ -50,8 +55,9 @@ async def lifespan(app: FastAPI):
     yield
 
     # Shutdown: Stop the scheduler
-    SynopsisScheduler.stop()
-    logger.info("Synopsis scheduler stopped")
+    if SynopsisScheduler is not None:
+        SynopsisScheduler.stop()
+        logger.info("Synopsis scheduler stopped")
 
 
 app = FastAPI(
@@ -100,6 +106,8 @@ def trigger_manual_sync():
     Requires admin access in production.
     """
     try:
+        if SynopsisScheduler is None:
+            return {"status": "error", "message": "Synopsis scheduler module not available."}
         result = SynopsisScheduler.add_manual_job()
         return {"status": "success", "data": result}
     except Exception as e:

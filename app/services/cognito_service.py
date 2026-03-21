@@ -34,8 +34,8 @@ class CognitoService:
 
     @property
     def client(self):
-        if self._client is None and self.region:
-            # Initialize Boto3 Cognito client lazily once region is configured
+        if self._client is None:
+            # Initialize Boto3 Cognito client lazily
             self._client = boto3.client("cognito-idp", region_name=self.region)
         return self._client
 
@@ -49,9 +49,6 @@ class CognitoService:
         """
         Retrieve JWKS (JSON Web Key Set) for token validation from AWS Cognito.
         """
-        if not self.region or not self.user_pool_id:
-            # Return empty keys if not configured
-            return []
         try:
             response = requests.get(self.jwks_url, timeout=5)
             if response.status_code != 200:
