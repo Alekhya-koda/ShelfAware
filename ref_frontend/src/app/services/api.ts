@@ -112,6 +112,14 @@ export interface BookshelfItem {
   synopsis?: string | null;
 }
 
+export interface BookshelfStats {
+  read_this_month: number;
+  read_this_year: number;
+  avg_days_to_finish?: number | null;
+  current_streak_days: number;
+  best_streak_days: number;
+}
+
 class ApiService {
   private async request(endpoint: string, options: RequestInit = {}): Promise<any> {
     const url = `${API_BASE_URL}${endpoint}`;
@@ -246,6 +254,14 @@ class ApiService {
   async removeFromBookshelf(accessToken: string, bookId: string): Promise<void> {
     await this.request(`/bookshelf/${bookId}`, {
       method: 'DELETE',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+  }
+
+  async getMyBookshelfStats(accessToken: string): Promise<BookshelfStats> {
+    return this.request('/bookshelf/stats', {
       headers: {
         Authorization: `Bearer ${accessToken}`,
       },

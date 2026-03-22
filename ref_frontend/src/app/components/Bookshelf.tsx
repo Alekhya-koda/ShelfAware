@@ -4,7 +4,7 @@ import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import { Input } from './ui/input';
 import { BookOpen, Loader2, Search, Trash2 } from 'lucide-react';
-import { apiService, Book, BookshelfItem, ShelfStatus } from '../services/api';
+import { apiService, Book, BookshelfItem, BookshelfStats, ShelfStatus } from '../services/api';
 import { useNavigate } from 'react-router';
 import { toast } from 'sonner';
 
@@ -20,6 +20,7 @@ export function Bookshelf({ accessToken }: BookshelfProps) {
   const navigate = useNavigate();
   const [books, setBooks] = useState<Book[]>([]);
   const [shelfItems, setShelfItems] = useState<BookshelfItem[]>([]);
+  const [stats, setStats] = useState<BookshelfStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -39,8 +40,10 @@ export function Bookshelf({ accessToken }: BookshelfProps) {
           apiService.getBooks(),
           apiService.getMyBookshelf(accessToken),
         ]);
+        const fetchedStats = await apiService.getMyBookshelfStats(accessToken).catch(() => null);
         setBooks(fetchedBooks);
         setShelfItems(fetchedShelf);
+        setStats(fetchedStats);
         setError(null);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load bookshelf.');
@@ -132,22 +135,17 @@ export function Bookshelf({ accessToken }: BookshelfProps) {
       <CardContent className="p-3 flex-1 flex flex-col">
         <h3 className="font-semibold line-clamp-2 text-sm mb-2 flex-grow">{item.book?.title || item.book_id}</h3>
         <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
-          {item.shelf_status !== 'want_to_read' && (
-            <Button size="xs" variant="outline" onClick={() => handleStatusChange(item.book_id, 'want_to_read')} disabled={savingBookId === item.book_id} className="text-xs h-7 px-2">
-              Want
+          {item.shelf_status === 'want_to_read' && (
+            <Button size="sm" variant="outline" onClick={() => handleStatusChange(item.book_id, 'currently_reading')} disabled={savingBookId === item.book_id} className="text-xs h-7 px-2">
+              Start
             </Button>
           )}
-          {item.shelf_status !== 'currently_reading' && (
-            <Button size="xs" variant="outline" onClick={() => handleStatusChange(item.book_id, 'currently_reading')} disabled={savingBookId === item.book_id} className="text-xs h-7 px-2">
-              Reading
+          {item.shelf_status === 'currently_reading' && (
+            <Button size="sm" variant="outline" onClick={() => handleStatusChange(item.book_id, 'read')} disabled={savingBookId === item.book_id} className="text-xs h-7 px-2">
+              Finish
             </Button>
           )}
-          {item.shelf_status !== 'read' && (
-            <Button size="xs" variant="outline" onClick={() => handleStatusChange(item.book_id, 'read')} disabled={savingBookId === item.book_id} className="text-xs h-7 px-2">
-              Read
-            </Button>
-          )}
-          <Button size="xs" variant="ghost" onClick={() => handleRemove(item.book_id)} disabled={savingBookId === item.book_id} className="ml-auto h-7 px-1">
+          <Button size="sm" variant="ghost" onClick={() => handleRemove(item.book_id)} disabled={savingBookId === item.book_id} className="ml-auto h-7 px-1">
             <Trash2 className="size-3" />
           </Button>
         </div>
@@ -198,6 +196,31 @@ export function Bookshelf({ accessToken }: BookshelfProps) {
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-10"
             />
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardContent className="p-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+            <div className="rounded-md bg-gray-50 p-3">
+              <p className="text-gray-500">Read This Month</p>
+              <p className="text-xl font-semibold">{stats?.read_this_month ?? 0}</p>
+            </div>
+            <div className="rounded-md bg-gray-50 p-3">
+              <p className="text-gray-500">Read This Year</p>
+              <p className="text-xl font-semibold">{stats?.read_this_year ?? 0}</p>
+            </div>
+            <div className="rounded-md bg-gray-50 p-3">
+              <p className="text-gray-500">Avg Days to Finish</p>
+              <p className="text-xl font-semibold">
+                {typeof stats?.avg_days_to_finish === 'number' ? stats.avg_days_to_finish.toFixed(1) : '-'}
+              </p>
+            </div>
+            <div className="rounded-md bg-gray-50 p-3">
+              <p className="text-gray-500">Current Streak</p>
+              <p className="text-xl font-semibold">{stats?.current_streak_days ?? 0}</p>
+            </div>
           </div>
         </CardContent>
       </Card>
