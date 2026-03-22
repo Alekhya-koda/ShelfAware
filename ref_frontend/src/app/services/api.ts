@@ -219,6 +219,35 @@ class ApiService {
     return this.request('/books/genres');
   }
 
+  async createBook(accessToken: string, book: Partial<Book>): Promise<Book> {
+    return this.request('/books/', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify(book),
+    });
+  }
+
+  async updateBook(accessToken: string, bookId: string, book: Partial<Book>): Promise<Book> {
+    return this.request(`/books/${bookId}`, {
+      method: 'PUT',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify(book),
+    });
+  }
+
+  async deleteBook(accessToken: string, bookId: string): Promise<void> {
+    await this.request(`/books/${bookId}`, {
+      method: 'DELETE',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+  }
+
   // Reviews API
   async getReviewsForBook(bookId: string): Promise<Review[]> {
     return this.request(`/reviews/book/${bookId}`);

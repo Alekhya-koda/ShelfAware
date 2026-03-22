@@ -25,11 +25,6 @@ export function Login({ onLogin }: LoginProps) {
 
   const handleLogin = async (e: React.FormEvent, isAdmin: boolean = false) => {
     e.preventDefault();
-    if (isAdmin) {
-      onLogin(true);
-      navigate('/admin');
-      return;
-    }
 
     const normalizedEmail = email.trim().toLowerCase();
     if (!normalizedEmail || !password.trim()) {
@@ -45,8 +40,29 @@ export function Login({ onLogin }: LoginProps) {
         throw new Error('Login response did not include an access token');
       }
 
-      onLogin(false, { accessToken, email: result.user.email, userId: result.user.user_id });
-      navigate('/inspiration');
+      // If admin login, verify the user has admin access by checking if they can access admin endpoints
+      if (isAdmin) {
+        try {
+          // Make a simple admin endpoint call to verify admin access
+          const adminCheckResponse = await fetch('http://localhost:8000/admin/users', {
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+            },
+          });
+          if (!adminCheckResponse.ok) {
+            throw new Error('Admin access denied');
+          }
+          // If we get here without error, user has valid admin access
+          onLogin(true, { accessToken, email: result.user.email, userId: result.user.user_id });
+          navigate('/admin');
+        } catch (adminError) {
+          toast.error('Admin access denied. User does not have admin privileges.');
+          return;
+        }
+      } else {
+        onLogin(false, { accessToken, email: result.user.email, userId: result.user.user_id });
+        navigate('/inspiration');
+      }
     } catch (error) {
       console.error('Login failed:', error);
       if (error instanceof ApiError && error.status === 403 && error.message.toLowerCase().includes('not confirmed')) {
