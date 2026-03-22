@@ -9,19 +9,24 @@ import { Textarea } from './ui/textarea';
 import { Button } from './ui/button';
 import { Star, BookOpen, Award, TrendingUp, Calendar, Heart } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts';
-import { mockUser, mockReadingProgress, mockReviews, mockBooks, mockMoodHistory } from '../data/mockData';
-import { apiService } from '../services/api';
+import { mockBooks, mockMoodHistory } from '../data/mockData';
+import { apiService, Book, BookshelfItem, Review } from '../services/api';
 import { toast } from 'sonner';
 
 interface ProfileProps {
   accessToken: string | null;
   userEmail: string | null;
+  userId: string | null;
 }
 
-export function Profile({ accessToken, userEmail }: ProfileProps) {
+export function Profile({ accessToken, userEmail, userId }: ProfileProps) {
   const [isProfileLoading, setIsProfileLoading] = useState(true);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [isActivityLoading, setIsActivityLoading] = useState(true);
   const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [booksById, setBooksById] = useState<Record<string, Book>>({});
+  const [myShelfItems, setMyShelfItems] = useState<BookshelfItem[]>([]);
+  const [myReviews, setMyReviews] = useState<Review[]>([]);
   const [profileForm, setProfileForm] = useState({
     display_name: '',
     profile_photo_url: '',
@@ -71,8 +76,57 @@ export function Profile({ accessToken, userEmail }: ProfileProps) {
     loadMyProfile();
   }, [accessToken]);
 
+  useEffect(() => {
+    const loadActivity = async () => {
+      if (!accessToken) {
+        setIsActivityLoading(false);
+        return;
+      }
+
+      try {
+        setIsActivityLoading(true);
+
+        const [allBooks, shelfItems] = await Promise.all([
+          apiService.getBooks(),
+          apiService.getMyBookshelf(accessToken),
+        ]);
+
+        const byId = allBooks.reduce<Record<string, Book>>((acc, book) => {
+          acc[book.book_id] = book;
+          return acc;
+        }, {});
+
+        setBooksById(byId);
+        setMyShelfItems(shelfItems);
+
+        if (userId && shelfItems.length > 0) {
+          const uniqueBookIds = Array.from(new Set(shelfItems.map((item) => item.book_id)));
+          const reviewsByBook = await Promise.all(
+            uniqueBookIds.map((bookId) => apiService.getReviewsForBook(bookId).catch(() => [] as Review[]))
+          );
+
+          const mine = reviewsByBook
+            .flat()
+            .filter((review) => String(review.user_id || '') === String(userId))
+            .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+          setMyReviews(mine);
+        } else {
+          setMyReviews([]);
+        }
+      } catch (error) {
+        console.error('Failed to load profile activity:', error);
+        toast.error('Could not load reading activity from backend');
+      } finally {
+        setIsActivityLoading(false);
+      }
+    };
+
+    loadActivity();
+  }, [accessToken, userId]);
+
   const userInitials = useMemo(() => {
-    const source = profileForm.display_name || userEmail || mockUser.name;
+    const source = profileForm.display_name || userEmail || 'User';
     return source
       .split(' ')
       .filter(Boolean)
@@ -141,18 +195,16 @@ export function Profile({ accessToken, userEmail }: ProfileProps) {
     }
   };
 
-  const totalBooks = mockReadingProgress.length;
-  const completedBooks = mockReadingProgress.filter((p) => p.status === 'completed').length;
-  const currentlyReading = mockReadingProgress.filter((p) => p.status === 'reading').length;
+  const totalBooks = myShelfItems.length;
+  const completedBooks = myShelfItems.filter((p) => p.shelf_status === 'read').length;
+  const currentlyReading = myShelfItems.filter((p) => p.shelf_status === 'currently_reading').length;
 
-  // Calculate reading statistics
-  const genreData = mockBooks.reduce((acc, book) => {
-    const progress = mockReadingProgress.find((p) => p.bookId === book.id);
-    if (progress) {
-      book.genre.forEach((genre) => {
-        acc[genre] = (acc[genre] || 0) + 1;
-      });
-    }
+  // No backend endpoint currently exposes profile genre analytics, so keep this mock chart.
+  const genreData = mockBooks.reduce((acc, book: any) => {
+    const genres = Array.isArray(book?.genre) ? book.genre : [];
+    genres.forEach((genre: string) => {
+      acc[genre] = (acc[genre] || 0) + 1;
+    });
     return acc;
   }, {} as Record<string, number>);
 
@@ -169,7 +221,7 @@ export function Profile({ accessToken, userEmail }: ProfileProps) {
 
   // Average rating given
   const avgRatingGiven =
-    mockReviews.reduce((sum, r) => sum + r.rating, 0) / mockReviews.length || 0;
+    myReviews.reduce((sum, r) => sum + r.rating, 0) / myReviews.length || 0;
 
   return (
     <div className="space-y-6">
@@ -194,16 +246,16 @@ export function Profile({ accessToken, userEmail }: ProfileProps) {
               <h2 className="text-2xl font-bold mb-1">
                 {isProfileLoading ? 'Loading profile...' : profileForm.display_name || 'Set your display name'}
               </h2>
-              <p className="text-gray-600 mb-3">{userEmail || mockUser.email}</p>
+              <p className="text-gray-600 mb-3">{userEmail || '-'}</p>
               <div className="flex items-center space-x-6">
                 <div className="flex items-center">
                   <Star className="size-5 text-yellow-500 mr-2 fill-current" />
-                  <span className="font-semibold">{mockUser.reputation.toFixed(1)}</span>
+                  <span className="font-semibold">-</span>
                   <span className="text-sm text-gray-600 ml-1">Reputation</span>
                 </div>
                 <div className="flex items-center">
                   <Award className="size-5 text-purple-500 mr-2" />
-                  <span className="font-semibold">{mockReviews.length}</span>
+                  <span className="font-semibold">{myReviews.length}</span>
                   <span className="text-sm text-gray-600 ml-1">Reviews</span>
                 </div>
                 <div className="flex items-center">
@@ -306,7 +358,7 @@ export function Profile({ accessToken, userEmail }: ProfileProps) {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-blue-600">{currentlyReading}</div>
+            <div className="text-3xl font-bold text-blue-600">{isActivityLoading ? '-' : currentlyReading}</div>
             <p className="text-sm text-gray-600 mt-1">books in progress</p>
           </CardContent>
         </Card>
@@ -319,9 +371,9 @@ export function Profile({ accessToken, userEmail }: ProfileProps) {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-yellow-600">{completedBooks}</div>
+            <div className="text-3xl font-bold text-yellow-600">{isActivityLoading ? '-' : completedBooks}</div>
             <p className="text-sm text-gray-600 mt-1">books finished</p>
-            <Progress value={(completedBooks / totalBooks) * 100} className="mt-3" />
+            <Progress value={totalBooks > 0 ? (completedBooks / totalBooks) * 100 : 0} className="mt-3" />
           </CardContent>
         </Card>
 
@@ -333,7 +385,7 @@ export function Profile({ accessToken, userEmail }: ProfileProps) {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-green-600">{avgRatingGiven.toFixed(1)}</div>
+            <div className="text-3xl font-bold text-green-600">{isActivityLoading ? '-' : avgRatingGiven.toFixed(1)}</div>
             <div className="flex mt-2">
               {Array.from({ length: 5 }).map((_, i) => (
                 <Star
@@ -412,16 +464,24 @@ export function Profile({ accessToken, userEmail }: ProfileProps) {
         <TabsContent value="reviews" className="mt-6">
           <Card>
             <CardHeader>
-              <CardTitle>My Reviews ({mockReviews.length})</CardTitle>
+              <CardTitle>My Reviews ({myReviews.length})</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              {mockReviews.map((review) => {
-                const book = mockBooks.find((b) => b.id === review.bookId);
+              {isActivityLoading ? (
+                <p className="text-center text-gray-500 py-6">Loading your reviews...</p>
+              ) : myReviews.length === 0 ? (
+                <p className="text-center text-gray-500 py-6">No reviews found yet.</p>
+              ) : myReviews.map((review) => {
+                const book = booksById[review.book_id];
+                const reviewMoodText = (review.book_mood || review.mood || '')
+                  .split(',')
+                  .map((m) => m.trim())
+                  .filter(Boolean);
                 return (
-                  <div key={review.id} className="border-b pb-4 last:border-b-0">
+                  <div key={review.review_id} className="border-b pb-4 last:border-b-0">
                     <div className="flex items-start justify-between mb-2">
                       <div>
-                        <h4 className="font-semibold">{book?.title}</h4>
+                        <h4 className="font-semibold">{book?.title || review.title || review.book_id}</h4>
                         <div className="flex items-center mt-1">
                           {Array.from({ length: 5 }).map((_, i) => (
                             <Star
@@ -436,18 +496,18 @@ export function Profile({ accessToken, userEmail }: ProfileProps) {
                         </div>
                       </div>
                       <span className="text-xs text-gray-500">
-                        {new Date(review.date).toLocaleDateString()}
+                        {new Date(review.created_at).toLocaleDateString()}
                       </span>
                     </div>
                     <div className="flex flex-wrap gap-2 mb-2">
-                      {review.emotion.map((emotion) => (
+                      {reviewMoodText.map((emotion) => (
                         <Badge key={emotion} variant="outline" className="text-xs">
                           <Heart className="size-3 mr-1" />
                           {emotion}
                         </Badge>
                       ))}
                     </div>
-                    <p className="text-gray-700">{review.content}</p>
+                    <p className="text-gray-700">{review.comment || '-'}</p>
                   </div>
                 );
               })}

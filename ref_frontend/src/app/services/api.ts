@@ -26,12 +26,15 @@ export interface Book {
 export interface Review {
   review_id: string;
   book_id: string;
+  user_id?: string;
   rating: number;
+  title?: string;
   comment?: string;
   book_mood?: string;
   // Backward compatibility with older API payloads.
   mood?: string;
   created_at: string;
+  updated_at?: string;
 }
 
 export interface ReviewCreate {

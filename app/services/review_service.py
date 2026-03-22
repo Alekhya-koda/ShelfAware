@@ -20,10 +20,11 @@ class ReviewService:
         self.db = db
 
     # --- Internal Helpers ---
-    def _ensure_book_exists(self, book_id: str) -> None:
-        exists = self.db.scalar(select(Book.book_id).where(Book.book_id == book_id))
-        if not exists:
+    def _ensure_book_exists(self, book_id: str) -> str:
+        title = self.db.scalar(select(Book.title).where(Book.book_id == book_id))
+        if not title:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Book not found")
+        return str(title)
 
     def _ensure_user_exists(self, user_id: str) -> None:
         exists = self.db.scalar(select(User.user_id).where(User.user_id == user_id))
@@ -38,7 +39,7 @@ class ReviewService:
 
     # --- Commands ---
     def add_review(self, *, book_id: str, user_id: str, review_data: ReviewCreate) -> Review:
-        self._ensure_book_exists(book_id)
+        book_title = self._ensure_book_exists(book_id)
         self._ensure_user_exists(user_id)
 
         payload = review_data.model_dump(exclude_unset=True)
@@ -53,6 +54,10 @@ class ReviewService:
         # Map API comment -> DB body if provided
         if comment_text is not None and payload.get("body") is None:
             payload["body"] = comment_text
+
+        # Persist the book title on the review row for downstream UI consumers.
+        if not payload.get("title"):
+            payload["title"] = book_title
 
         rating = payload.get("rating")
         if rating is None or not (1 <= rating <= 5):
