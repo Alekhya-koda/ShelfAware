@@ -8,23 +8,12 @@ import { Separator } from './ui/separator';
 import { Avatar, AvatarFallback } from './ui/avatar';
 import { Star, ArrowLeft, Loader2 } from 'lucide-react';
 import { apiService, Book, BookshelfItem, Review, ReviewCreate } from '../services/api';
+import { emotionTags } from '../data/mockData';
 import { toast } from 'sonner';
 
 interface BookDetailProps {
   accessToken: string | null;
 }
-
-const readingMoods = [
-  'Curious',
-  'Inspired',
-  'Excited',
-  'Reflective',
-  'Suspenseful',
-  'Peaceful',
-  'Moved',
-  'Confused',
-  'Hopeful',
-];
 
 function parseReadingCheckIn(synopsis?: string | null): { progress: number; moods: string[] } {
   if (!synopsis) return { progress: 0, moods: [] };
@@ -273,7 +262,7 @@ export function BookDetail({ accessToken }: BookDetailProps) {
                 <div>
                   <label className="block text-sm font-medium mb-2">How does this book make you feel so far?</label>
                   <div className="flex flex-wrap gap-2">
-                    {readingMoods.map((m) => (
+                    {emotionTags.map((m) => (
                       <Badge
                         key={m}
                         variant={selectedMoods.includes(m) ? 'default' : 'outline'}
@@ -332,7 +321,7 @@ export function BookDetail({ accessToken }: BookDetailProps) {
                 <div>
                   <label className="block text-sm font-medium mb-2">How did this book make you feel?</label>
                   <div className="flex flex-wrap gap-2">
-                    {readingMoods.map((m) => (
+                    {emotionTags.map((m) => (
                       <Badge
                         key={m}
                         variant={selectedMoods.includes(m) ? 'default' : 'outline'}
