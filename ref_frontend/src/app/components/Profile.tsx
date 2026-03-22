@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Avatar, AvatarFallback } from './ui/avatar';
 import { Badge } from './ui/badge';
@@ -66,6 +67,7 @@ function parseFavoriteGenres(raw: string): string[] {
 }
 
 export function Profile({ accessToken, userEmail, userId }: ProfileProps) {
+  const navigate = useNavigate();
   const [isProfileLoading, setIsProfileLoading] = useState(true);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [isActivityLoading, setIsActivityLoading] = useState(true);
@@ -603,7 +605,19 @@ export function Profile({ accessToken, userEmail, userId }: ProfileProps) {
                   .map((m) => m.trim())
                   .filter(Boolean);
                 return (
-                  <div key={review.review_id} className="border-b pb-4 last:border-b-0">
+                  <div
+                    key={review.review_id}
+                    className="border rounded-lg p-4 cursor-pointer hover:bg-gray-50 transition-colors"
+                    onClick={() => navigate(`/book/${review.book_id}`)}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        navigate(`/book/${review.book_id}`);
+                      }
+                    }}
+                  >
                     <div className="flex items-start justify-between mb-2">
                       <div>
                         <h4 className="font-semibold">{book?.title || review.title || review.book_id}</h4>

@@ -7,12 +7,13 @@ import { Textarea } from './ui/textarea';
 import { Separator } from './ui/separator';
 import { Avatar, AvatarFallback } from './ui/avatar';
 import { Star, ArrowLeft, Loader2 } from 'lucide-react';
-import { apiService, Book, BookshelfItem, Review, ReviewCreate } from '../services/api';
+import { apiService, Book, BookshelfItem, Review, ReviewCreate, ReviewUpdate } from '../services/api';
 import { emotionTags } from '../data/mockData';
 import { toast } from 'sonner';
 
 interface BookDetailProps {
   accessToken: string | null;
+  userId: string | null;
 }
 
 function parseReadingCheckIn(synopsis?: string | null): { progress: number; moods: string[] } {
@@ -43,7 +44,7 @@ function parseReadingCheckIn(synopsis?: string | null): { progress: number; mood
   }
 }
 
-export function BookDetail({ accessToken }: BookDetailProps) {
+export function BookDetail({ accessToken, userId }: BookDetailProps) {
   const { bookId } = useParams();
   const navigate = useNavigate();
   const [book, setBook] = useState<Book | null>(null);
@@ -58,6 +59,12 @@ export function BookDetail({ accessToken }: BookDetailProps) {
   const [readingProgress, setReadingProgress] = useState(0);
   const [selectedMoods, setSelectedMoods] = useState<string[]>([]);
   const [savingCheckIn, setSavingCheckIn] = useState(false);
+  const [editingReviewId, setEditingReviewId] = useState<string | null>(null);
+  const [editingRating, setEditingRating] = useState(0);
+  const [editingText, setEditingText] = useState('');
+  const [editingMoods, setEditingMoods] = useState<string[]>([]);
+  const [savingReviewEdit, setSavingReviewEdit] = useState(false);
+  const [deletingReviewId, setDeletingReviewId] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchBookData = async () => {
@@ -96,11 +103,148 @@ export function BookDetail({ accessToken }: BookDetailProps) {
 
   const canReview = myShelfItem?.shelf_status === 'read';
   const isCurrentlyReading = myShelfItem?.shelf_status === 'currently_reading';
+  const myExistingReview = userId
+    ? reviews.find((review) => String(review.user_id || '') === String(userId))
+    : undefined;
 
   const toggleMood = (mood: string) => {
     setSelectedMoods((prev) =>
       prev.includes(mood) ? prev.filter((m) => m !== mood) : [...prev, mood]
     );
+  };
+
+  const parseMoodPills = (review: Review): string[] => {
+    const raw = review.book_mood || review.mood || '';
+    return raw.split(',').map((m) => m.trim()).filter(Boolean);
+  };
+
+  const handleStartEditReview = (review: Review) => {
+    setEditingReviewId(review.review_id);
+    setEditingRating(review.rating || 0);
+    setEditingText(review.comment || '');
+    setEditingMoods(parseMoodPills(review));
+  };
+
+  const toggleEditingMood = (mood: string) => {
+    setEditingMoods((prev) =>
+      prev.includes(mood) ? prev.filter((m) => m !== mood) : [...prev, mood]
+    );
+  };
+
+  const handleCancelEditReview = () => {
+    setEditingReviewId(null);
+    setEditingRating(0);
+    setEditingText('');
+    setEditingMoods([]);
+  };
+
+  const handleSubmitReview = async () => {
+    if (!bookId || myRating === 0 || !accessToken) {
+      return;
+    }
+
+    const payload: ReviewCreate = {
+      rating: myRating,
+      comment: reviewText.trim() || undefined,
+      book_mood: selectedMoods.length > 0 ? selectedMoods.join(', ') : undefined,
+    };
+
+    try {
+      setSubmittingReview(true);
+      if (myExistingReview?.review_id) {
+        const updatedReview = await apiService.updateReview(accessToken, myExistingReview.review_id, payload as ReviewUpdate);
+        setReviews((prevReviews) =>
+          prevReviews.map((r) => (r.review_id === updatedReview.review_id ? updatedReview : r))
+        );
+        toast.success('Review updated successfully');
+      } else {
+        const createdReview = await apiService.addReview(accessToken, bookId, payload);
+        setReviews((prevReviews) => [createdReview, ...prevReviews]);
+        toast.success('Review submitted successfully');
+      }
+
+      setMyRating(0);
+      setReviewText('');
+    } catch (submitErr) {
+      console.error('Error submitting review:', submitErr);
+      toast.error(submitErr instanceof Error ? submitErr.message : 'Failed to submit review. Please try again.');
+    } finally {
+      setSubmittingReview(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!canReview || !myExistingReview) return;
+
+    setMyRating(myExistingReview.rating || 0);
+    setReviewText(myExistingReview.comment || '');
+
+    const reviewMoods = (myExistingReview.book_mood || myExistingReview.mood || '')
+      .split(',')
+      .map((m) => m.trim())
+      .filter(Boolean);
+    setSelectedMoods(reviewMoods);
+  }, [canReview, myExistingReview?.review_id]);
+
+  const handleSaveCheckIn = async () => {
+    if (!bookId || !accessToken || !isCurrentlyReading) return;
+
+    try {
+      setSavingCheckIn(true);
+      const updated = await apiService.updateBookshelfProgress(accessToken, bookId, {
+        progress_percent: readingProgress,
+        book_moods: selectedMoods,
+      });
+      setMyShelfItem(updated);
+      toast.success('Reading check-in saved');
+    } catch (err) {
+      console.error('Error saving reading check-in:', err);
+      toast.error(err instanceof Error ? err.message : 'Failed to save reading progress');
+    } finally {
+      setSavingCheckIn(false);
+    }
+  };
+
+  const handleSaveEditReview = async () => {
+    if (!accessToken || !editingReviewId || editingRating === 0) return;
+
+    try {
+      setSavingReviewEdit(true);
+      const payload: ReviewUpdate = {
+        rating: editingRating,
+        comment: editingText.trim() || undefined,
+        book_mood: editingMoods.length > 0 ? editingMoods.join(', ') : undefined,
+      };
+
+      const updated = await apiService.updateReview(accessToken, editingReviewId, payload);
+      setReviews((prev) => prev.map((r) => (r.review_id === updated.review_id ? updated : r)));
+      toast.success('Review updated');
+      handleCancelEditReview();
+    } catch (err) {
+      console.error('Error updating review:', err);
+      toast.error(err instanceof Error ? err.message : 'Failed to update review');
+    } finally {
+      setSavingReviewEdit(false);
+    }
+  };
+
+  const handleDeleteReview = async (reviewId: string) => {
+    if (!accessToken) return;
+
+    try {
+      setDeletingReviewId(reviewId);
+      await apiService.deleteReview(accessToken, reviewId);
+      setReviews((prev) => prev.filter((r) => r.review_id !== reviewId));
+      if (editingReviewId === reviewId) {
+        handleCancelEditReview();
+      }
+      toast.success('Review deleted');
+    } catch (err) {
+      console.error('Error deleting review:', err);
+      toast.error(err instanceof Error ? err.message : 'Failed to delete review');
+    } finally {
+      setDeletingReviewId(null);
+    }
   };
 
   if (loading) {
@@ -132,51 +276,6 @@ export function BookDetail({ accessToken }: BookDetailProps) {
       </div>
     );
   }
-
-  const handleSubmitReview = async () => {
-    if (!bookId || myRating === 0 || !accessToken) {
-      return;
-    }
-
-    const payload: ReviewCreate = {
-      rating: myRating,
-      comment: reviewText.trim() || undefined,
-      book_mood: selectedMoods.length > 0 ? selectedMoods.join(', ') : undefined,
-    };
-
-    try {
-      setSubmittingReview(true);
-      const createdReview = await apiService.addReview(accessToken, bookId, payload);
-      setReviews((prevReviews) => [createdReview, ...prevReviews]);
-      setMyRating(0);
-      setReviewText('');
-      toast.success('Review submitted successfully');
-    } catch (submitErr) {
-      console.error('Error submitting review:', submitErr);
-      toast.error('Failed to submit review. Please try again.');
-    } finally {
-      setSubmittingReview(false);
-    }
-  };
-
-  const handleSaveCheckIn = async () => {
-    if (!bookId || !accessToken || !isCurrentlyReading) return;
-
-    try {
-      setSavingCheckIn(true);
-      const updated = await apiService.updateBookshelfProgress(accessToken, bookId, {
-        progress_percent: readingProgress,
-        book_moods: selectedMoods,
-      });
-      setMyShelfItem(updated);
-      toast.success('Reading check-in saved');
-    } catch (err) {
-      console.error('Error saving reading check-in:', err);
-      toast.error(err instanceof Error ? err.message : 'Failed to save reading progress');
-    } finally {
-      setSavingCheckIn(false);
-    }
-  };
 
   return (
     <div className="space-y-6">
@@ -299,11 +398,11 @@ export function BookDetail({ accessToken }: BookDetailProps) {
             </Card>
           )}
 
-          {/* Write Review (Only when completed) */}
-          {canReview ? (
+          {/* Leave a Review (Only when completed and no existing user review) */}
+          {canReview && !myExistingReview ? (
             <Card>
               <CardHeader>
-                <CardTitle>Write a Review</CardTitle>
+                <CardTitle>Leave a Review</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div>
@@ -366,7 +465,7 @@ export function BookDetail({ accessToken }: BookDetailProps) {
                   {submittingReview ? (
                     <>
                       <Loader2 className="size-4 mr-2 animate-spin" />
-                      Submitting...
+                      Saving...
                     </>
                   ) : (
                     'Submit Review'
@@ -374,7 +473,7 @@ export function BookDetail({ accessToken }: BookDetailProps) {
                 </Button>
               </CardContent>
             </Card>
-          ) : (
+          ) : !canReview ? (
             <Card>
               <CardHeader>
                 <CardTitle>Write a Review</CardTitle>
@@ -385,7 +484,7 @@ export function BookDetail({ accessToken }: BookDetailProps) {
                 </p>
               </CardContent>
             </Card>
-          )}
+          ) : null}
 
           {/* Existing Reviews */}
           <Card>
@@ -398,35 +497,123 @@ export function BookDetail({ accessToken }: BookDetailProps) {
               ) : (
                 reviews.map((review) => (
                   <div key={review.review_id} className="border-b pb-4 last:border-b-0">
-                    <div className="flex items-start justify-between mb-2">
-                      <div className="flex items-center">
-                        <Avatar className="size-10 mr-3">
-                          <AvatarFallback>U{review.user_id.slice(-1).toUpperCase()}</AvatarFallback>
+                    <div className="flex items-start justify-between gap-3 mb-2">
+                      <div className="flex items-start gap-3 min-w-0">
+                        <Avatar className="size-10">
+                          <AvatarFallback>
+                            U{String(review.user_id || '?').slice(-1).toUpperCase()}
+                          </AvatarFallback>
                         </Avatar>
-                        <div>
-                          <div className="flex items-center">
-                            {Array.from({ length: 5 }).map((_, i) => (
-                              <Star
-                                key={i}
-                                className={`size-4 ${
-                                  i < review.rating
-                                    ? 'text-yellow-500 fill-current'
-                                    : 'text-gray-300'
-                                }`}
-                              />
-                            ))}
-                            <span className="ml-2 text-sm text-gray-600">
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <div className="flex items-center">
+                              {Array.from({ length: 5 }).map((_, i) => (
+                                <Star
+                                  key={i}
+                                  className={`size-4 ${
+                                    i < review.rating
+                                      ? 'text-yellow-500 fill-current'
+                                      : 'text-gray-300'
+                                  }`}
+                                />
+                              ))}
+                            </div>
+                            <span className="text-sm text-gray-600">
                               {new Date(review.created_at).toLocaleDateString()}
                             </span>
+                            {parseMoodPills(review).map((mood) => (
+                              <Badge key={`${review.review_id}-${mood}`} variant="secondary" className="text-xs">
+                                {mood}
+                              </Badge>
+                            ))}
                           </div>
-                          {(review.book_mood || review.mood) && (
-                            <p className="text-sm text-gray-500 mt-1">Book mood: {review.book_mood || review.mood}</p>
-                          )}
                         </div>
                       </div>
+                      {accessToken && userId && String(review.user_id || '') === String(userId) && (
+                        <div className="flex gap-2 shrink-0">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleStartEditReview(review)}
+                            disabled={deletingReviewId === review.review_id || savingReviewEdit}
+                          >
+                            Update
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleDeleteReview(review.review_id)}
+                            disabled={deletingReviewId === review.review_id || savingReviewEdit}
+                          >
+                            {deletingReviewId === review.review_id ? 'Deleting...' : 'Delete'}
+                          </Button>
+                        </div>
+                      )}
                     </div>
-                    {(review.comment || review.body) && (
-                      <p className="text-gray-700 mt-2">{review.comment || review.body}</p>
+
+                    {editingReviewId === review.review_id ? (
+                      <div className="mt-3 space-y-3 rounded-md border p-3 bg-gray-50">
+                        <div>
+                          <label className="block text-sm font-medium mb-2">Update Rating</label>
+                          <div className="flex gap-2">
+                            {[1, 2, 3, 4, 5].map((star) => (
+                              <button
+                                key={star}
+                                onClick={() => setEditingRating(star)}
+                                className="focus:outline-none"
+                                disabled={savingReviewEdit}
+                              >
+                                <Star
+                                  className={`size-6 ${
+                                    star <= editingRating
+                                      ? 'text-yellow-500 fill-current'
+                                      : 'text-gray-300'
+                                  }`}
+                                />
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium mb-2">Update Mood</label>
+                          <div className="flex flex-wrap gap-2">
+                            {emotionTags.map((mood) => (
+                              <Badge
+                                key={mood}
+                                variant={editingMoods.includes(mood) ? 'default' : 'outline'}
+                                className={`cursor-pointer ${savingReviewEdit ? 'opacity-50 pointer-events-none' : ''}`}
+                                onClick={() => toggleEditingMood(mood)}
+                              >
+                                {mood}
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium mb-2">Update Review</label>
+                          <Textarea
+                            value={editingText}
+                            onChange={(e) => setEditingText(e.target.value)}
+                            rows={3}
+                            disabled={savingReviewEdit}
+                          />
+                        </div>
+
+                        <div className="flex gap-2">
+                          <Button onClick={handleSaveEditReview} disabled={savingReviewEdit || editingRating === 0}>
+                            {savingReviewEdit ? 'Saving...' : 'Save'}
+                          </Button>
+                          <Button variant="outline" onClick={handleCancelEditReview} disabled={savingReviewEdit}>
+                            Cancel
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      (review.comment || (review as any).body) && (
+                        <p className="text-gray-700 mt-2">{review.comment || (review as any).body}</p>
+                      )
                     )}
                   </div>
                 ))

@@ -49,7 +49,7 @@ export default function App() {
           <Route path="/" element={<Navigate to="/inspiration" replace />} />
           <Route path="/inspiration" element={<Inspiration accessToken={accessToken} />} />
           <Route path="/bookshelf" element={<Bookshelf accessToken={accessToken} />} />
-          <Route path="/book/:bookId" element={<BookDetail accessToken={accessToken} />} />
+          <Route path="/book/:bookId" element={<BookDetail accessToken={accessToken} userId={userId} />} />
           <Route path="/profile" element={<Profile accessToken={accessToken} userEmail={userEmail} userId={userId} />} />
           <Route path="/chatbot" element={<Chatbot userId={userId} />} />
           <Route path="/admin" element={isAdmin ? <AdminPanel /> : <Navigate to="/inspiration" replace />} />

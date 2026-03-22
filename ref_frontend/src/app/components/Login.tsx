@@ -183,10 +183,6 @@ export function Login({ onLogin }: LoginProps) {
                   >
                     {isCreatingAccount ? 'Creating Account...' : 'Create Account'}
                   </Button>
-                  <p className="text-sm text-center text-gray-600">
-                    Demo: Click to login as user
-                  </p>
-
                   {showConfirmAccount && (
                     <div className="mt-4 border rounded-lg p-3 bg-amber-50 space-y-3">
                       <p className="text-sm font-medium text-amber-900">

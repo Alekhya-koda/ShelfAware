@@ -45,6 +45,13 @@ export interface ReviewCreate {
   mood?: string;
 }
 
+export interface ReviewUpdate {
+  rating?: number;
+  comment?: string;
+  book_mood?: string;
+  mood?: string;
+}
+
 export interface ChatRequest {
   message: string;
   user_id?: string;
@@ -224,6 +231,25 @@ class ApiService {
         Authorization: `Bearer ${accessToken}`,
       },
       body: JSON.stringify(review),
+    });
+  }
+
+  async updateReview(accessToken: string, reviewId: string, payload: ReviewUpdate): Promise<Review> {
+    return this.request(`/reviews/${reviewId}`, {
+      method: 'PUT',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async deleteReview(accessToken: string, reviewId: string): Promise<void> {
+    await this.request(`/reviews/${reviewId}`, {
+      method: 'DELETE',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
     });
   }
 
