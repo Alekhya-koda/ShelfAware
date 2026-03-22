@@ -7,7 +7,10 @@ ShelfStatus = Literal["want_to_read", "currently_reading", "read"]
 
 
 class BookshelfCreate(BaseModel):
-    book_id: str
+    """Schema for adding a book to shelf. Expects: {\"book_id\": \"string_id\"}"""
+    book_id: str = Field(..., description="The ID of the book to add")
+    
+    model_config = ConfigDict(from_attributes=True, extra='forbid')
 
 
 class BookshelfStatusUpdate(BaseModel):

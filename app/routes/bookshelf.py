@@ -1,8 +1,9 @@
 # app/routes/bookshelf.py
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 from typing import Optional, Literal
+from pydantic import ValidationError
 
 from app.dependencies.db import get_db
 from app.dependencies.auth import get_current_db_user
