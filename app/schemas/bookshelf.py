@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field, ConfigDict    
-from typing import Optional, Literal, Dict
+from typing import Optional, Literal, Dict, List
 from datetime import datetime, date
 
 
@@ -20,6 +20,7 @@ class BookshelfStatusUpdate(BaseModel):
 class BookshelfProgressUpdate(BaseModel):
     progress_percent: int = Field(..., ge=0, le=100)
     mood: Optional[str] = None
+    moods: Optional[List[str]] = None
 
 
 class BookshelfRead(BaseModel):

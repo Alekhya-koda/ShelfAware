@@ -115,6 +115,7 @@ export interface BookshelfItem {
 export interface ReadingCheckIn {
   progress_percent: number;
   mood?: string;
+  moods?: string[];
 }
 
 export interface BookshelfStats {

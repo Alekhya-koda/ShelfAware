@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
+import { Badge } from './ui/badge';
 import { Textarea } from './ui/textarea';
 import { Separator } from './ui/separator';
 import { Avatar, AvatarFallback } from './ui/avatar';
@@ -25,16 +26,21 @@ const readingMoods = [
   'Hopeful',
 ];
 
-function parseReadingCheckIn(synopsis?: string | null): { progress: number; mood: string } {
-  if (!synopsis) return { progress: 0, mood: '' };
+function parseReadingCheckIn(synopsis?: string | null): { progress: number; moods: string[] } {
+  if (!synopsis) return { progress: 0, moods: [] };
   try {
-    const parsed = JSON.parse(synopsis) as { progress_percent?: number; mood?: string };
+    const parsed = JSON.parse(synopsis) as { progress_percent?: number; mood?: string; moods?: string[] };
+    const parsedMoods = Array.isArray(parsed.moods)
+      ? parsed.moods.map((m) => String(m).trim()).filter(Boolean)
+      : (typeof parsed.mood === 'string'
+          ? parsed.mood.split(',').map((m) => m.trim()).filter(Boolean)
+          : []);
     return {
       progress: typeof parsed.progress_percent === 'number' ? Math.max(0, Math.min(100, parsed.progress_percent)) : 0,
-      mood: typeof parsed.mood === 'string' ? parsed.mood : '',
+      moods: parsedMoods,
     };
   } catch {
-    return { progress: 0, mood: '' };
+    return { progress: 0, moods: [] };
   }
 }
 
@@ -49,10 +55,9 @@ export function BookDetail({ accessToken }: BookDetailProps) {
 
   const [myRating, setMyRating] = useState(0);
   const [reviewText, setReviewText] = useState('');
-  const [reviewMood, setReviewMood] = useState('');
   const [submittingReview, setSubmittingReview] = useState(false);
   const [readingProgress, setReadingProgress] = useState(0);
-  const [readingMood, setReadingMood] = useState('');
+  const [selectedMoods, setSelectedMoods] = useState<string[]>([]);
   const [savingCheckIn, setSavingCheckIn] = useState(false);
 
   useEffect(() => {
@@ -77,7 +82,7 @@ export function BookDetail({ accessToken }: BookDetailProps) {
         setMyShelfItem(shelfItem);
         const checkIn = parseReadingCheckIn(shelfItem?.synopsis);
         setReadingProgress(checkIn.progress);
-        setReadingMood(checkIn.mood);
+        setSelectedMoods(checkIn.moods);
         setError(null);
       } catch (err) {
         setError('Failed to load book data');
@@ -92,6 +97,12 @@ export function BookDetail({ accessToken }: BookDetailProps) {
 
   const canReview = myShelfItem?.shelf_status === 'read';
   const isCurrentlyReading = myShelfItem?.shelf_status === 'currently_reading';
+
+  const toggleMood = (mood: string) => {
+    setSelectedMoods((prev) =>
+      prev.includes(mood) ? prev.filter((m) => m !== mood) : [...prev, mood]
+    );
+  };
 
   if (loading) {
     return (
@@ -131,7 +142,7 @@ export function BookDetail({ accessToken }: BookDetailProps) {
     const payload: ReviewCreate = {
       rating: myRating,
       comment: reviewText.trim() || undefined,
-      mood: reviewMood.trim() || undefined,
+      mood: selectedMoods.length > 0 ? selectedMoods.join(', ') : undefined,
     };
 
     try {
@@ -140,7 +151,6 @@ export function BookDetail({ accessToken }: BookDetailProps) {
       setReviews((prevReviews) => [createdReview, ...prevReviews]);
       setMyRating(0);
       setReviewText('');
-      setReviewMood('');
       toast.success('Review submitted successfully');
     } catch (submitErr) {
       console.error('Error submitting review:', submitErr);
@@ -157,7 +167,7 @@ export function BookDetail({ accessToken }: BookDetailProps) {
       setSavingCheckIn(true);
       const updated = await apiService.updateBookshelfProgress(accessToken, bookId, {
         progress_percent: readingProgress,
-        mood: readingMood.trim() || undefined,
+        moods: selectedMoods,
       });
       setMyShelfItem(updated);
       toast.success('Reading check-in saved');
@@ -262,17 +272,18 @@ export function BookDetail({ accessToken }: BookDetailProps) {
 
                 <div>
                   <label className="block text-sm font-medium mb-2">How does this book make you feel so far?</label>
-                  <select
-                    value={readingMood}
-                    onChange={(e) => setReadingMood(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    disabled={savingCheckIn}
-                  >
-                    <option value="">Select a mood...</option>
+                  <div className="flex flex-wrap gap-2">
                     {readingMoods.map((m) => (
-                      <option key={m} value={m}>{m}</option>
+                      <Badge
+                        key={m}
+                        variant={selectedMoods.includes(m) ? 'default' : 'outline'}
+                        className={`cursor-pointer ${savingCheckIn ? 'opacity-50 pointer-events-none' : ''}`}
+                        onClick={() => toggleMood(m)}
+                      >
+                        {m}
+                      </Badge>
                     ))}
-                  </select>
+                  </div>
                 </div>
 
                 <Button onClick={handleSaveCheckIn} className="w-full" disabled={savingCheckIn}>
@@ -320,14 +331,21 @@ export function BookDetail({ accessToken }: BookDetailProps) {
 
                 <div>
                   <label className="block text-sm font-medium mb-2">How did this book make you feel?</label>
-                  <input
-                    type="text"
-                    placeholder="e.g., Happy, Thought-provoking, Inspiring..."
-                    value={reviewMood}
-                    onChange={(e) => setReviewMood(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    disabled={submittingReview}
-                  />
+                  <div className="flex flex-wrap gap-2">
+                    {readingMoods.map((m) => (
+                      <Badge
+                        key={m}
+                        variant={selectedMoods.includes(m) ? 'default' : 'outline'}
+                        className={`cursor-pointer ${submittingReview ? 'opacity-50 pointer-events-none' : ''}`}
+                        onClick={() => toggleMood(m)}
+                      >
+                        {m}
+                      </Badge>
+                    ))}
+                  </div>
+                  <p className="text-xs text-gray-500 mt-2">
+                    Selected moods from reading check-ins are synced here and can still be adjusted before submitting.
+                  </p>
                 </div>
 
                 <div>

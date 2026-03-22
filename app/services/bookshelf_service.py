@@ -140,6 +140,7 @@ class BookshelfService:
         book_id: str,
         progress_percent: int,
         mood: Optional[str] = None,
+        moods: Optional[List[str]] = None,
     ) -> Bookshelf:
         item = self.db.execute(
             select(Bookshelf).where(
@@ -164,8 +165,21 @@ class BookshelfService:
             except Exception:
                 payload = {}
 
+        normalized_moods: List[str] = []
+        if moods:
+            seen = set()
+            for raw in moods:
+                val = (raw or "").strip()
+                if val and val.lower() not in seen:
+                    seen.add(val.lower())
+                    normalized_moods.append(val)
+        elif mood:
+            split_vals = [part.strip() for part in mood.split(",")]
+            normalized_moods = [m for m in split_vals if m]
+
         payload["progress_percent"] = int(progress_percent)
-        payload["mood"] = (mood or "").strip() or None
+        payload["moods"] = normalized_moods
+        payload["mood"] = ", ".join(normalized_moods) if normalized_moods else None
         payload["last_check_in_at"] = now.isoformat()
 
         item.synopsis = json.dumps(payload)

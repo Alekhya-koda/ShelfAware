@@ -144,6 +144,7 @@ def update_progress(
             book_id=book_id,
             progress_percent=payload.progress_percent,
             mood=payload.mood,
+            moods=payload.moods,
         )
     except ValueError as e:
         msg = str(e)
