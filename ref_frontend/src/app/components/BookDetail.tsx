@@ -107,7 +107,17 @@ export function BookDetail({ accessToken }: BookDetailProps) {
       <div className="flex items-center justify-center min-h-[400px]">
         <div className="text-center">
           <p className="text-red-500 mb-4">{error || 'Book not found'}</p>
-          <Button onClick={() => navigate('/inspiration')}>Back to Inspiration</Button>
+          <div className="flex items-center justify-center gap-3">
+            {accessToken && (
+              <Button onClick={() => navigate('/bookshelf')}>
+                <ArrowLeft className="size-4 mr-2" />
+                Back to Bookshelf
+              </Button>
+            )}
+            <Button variant={accessToken ? 'secondary' : 'default'} onClick={() => navigate('/inspiration')}>
+              Back to Inspiration
+            </Button>
+          </div>
         </div>
       </div>
     );
@@ -161,10 +171,17 @@ export function BookDetail({ accessToken }: BookDetailProps) {
 
   return (
     <div className="space-y-6">
-      <Button variant="ghost" onClick={() => navigate('/inspiration')} className="mb-4">
-        <ArrowLeft className="size-4 mr-2" />
-        Back to Inspiration
-      </Button>
+      <div className="flex items-center gap-3 mb-4">
+        {accessToken && (
+          <Button onClick={() => navigate('/bookshelf')}>
+            <ArrowLeft className="size-4 mr-2" />
+            Back to Bookshelf
+          </Button>
+        )}
+        <Button variant={accessToken ? 'secondary' : 'ghost'} onClick={() => navigate('/inspiration')}>
+          Back to Inspiration
+        </Button>
+      </div>
 
       <div className="grid md:grid-cols-3 gap-6">
         {/* Book Cover and Info */}
