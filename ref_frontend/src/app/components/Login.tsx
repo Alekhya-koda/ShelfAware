@@ -97,24 +97,7 @@ export function Login({ onLogin }: LoginProps) {
 
     try {
       setIsCreatingAccount(true);
-      const response = await fetch('http://localhost:8000/auth/registration', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          username,
-          email: normalizedEmail,
-          password,
-        }),
-      });
-
-      const body = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        const detail = typeof body?.detail === 'string' ? body.detail : 'Failed to create account';
-        throw new Error(detail);
-      }
-
+      await apiService.register(username, normalizedEmail, password);
       toast.success('Account created. Check email for confirmation if required.');
     } catch (error) {
       console.error('Create account failed:', error);

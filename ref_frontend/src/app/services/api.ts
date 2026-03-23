@@ -1,5 +1,5 @@
 // API service for connecting to the ShelfAware backend
-const API_BASE_URL = 'http://localhost:8000';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 
 export class ApiError extends Error {
   status: number;
@@ -276,6 +276,13 @@ class ApiService {
         email,
         confirmation_code: confirmationCode,
       }),
+    });
+  }
+
+  async register(username: string, email: string, password: string): Promise<{ message: string }> {
+    return this.request('/auth/registration', {
+      method: 'POST',
+      body: JSON.stringify({ username, email, password }),
     });
   }
 

@@ -1,0 +1,52 @@
+{
+  "family": "shelfaware-backend",
+  "taskRoleArn": "arn:aws:iam::YOUR_ACCOUNT_ID:role/ecsTaskExecutionRole",
+  "executionRoleArn": "arn:aws:iam::YOUR_ACCOUNT_ID:role/ecsTaskExecutionRole",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "256",
+  "memory": "512",
+  "containerDefinitions": [
+    {
+      "name": "shelfaware-backend",
+      "image": "YOUR_ACCOUNT_ID.dkr.ecr.ap-southeast-1.amazonaws.com/shelfaware-backend:latest",
+      "essential": true,
+      "portMappings": [
+        {
+          "containerPort": 8000,
+          "protocol": "tcp"
+        }
+      ],
+      "environment": [
+        {
+          "name": "OPENAI_API_KEY",
+          "value": "YOUR_OPENAI_API_KEY"
+        },
+        {
+          "name": "DATABASE_URL",
+          "value": "postgresql://user:password@db-host:5432/shelfaware"
+        },
+        {
+          "name": "COGNITO_REGION",
+          "value": "ap-southeast-1"
+        },
+        {
+          "name": "COGNITO_USER_POOL_ID",
+          "value": "YOUR_USER_POOL_ID"
+        },
+        {
+          "name": "COGNITO_CLIENT_ID",
+          "value": "YOUR_CLIENT_ID"
+        }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/shelfaware-backend",
+          "awslogs-region": "ap-southeast-1",
+          "awslogs-stream-prefix": "ecs"
+        }
+      }
+    }
+  ]
+}

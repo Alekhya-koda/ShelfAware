@@ -306,6 +306,109 @@ All errors are logged with full context for debugging.
 - [ ] Rate limiting for API calls
 - [ ] Dashboard for sync job monitoring
 
+## Production Deployment
+
+### Quick Start (AWS ECS)
+
+For detailed AWS ECS deployment instructions, see [`ECS_DEPLOYMENT_README.md`](ECS_DEPLOYMENT_README.md).
+
+#### Prerequisites
+- AWS Account with ECR, ECS, and RDS access
+- Docker installed locally
+- AWS CLI configured
+
+#### Deploy to ECS
+```bash
+# 1. Update configuration files with your AWS account ID
+# Edit deploy-to-ecs.sh and task-definitions/*.json
+
+# 2. Create ECR repositories
+aws ecr create-repository --repository-name shelfaware-backend --region ap-southeast-1
+aws ecr create-repository --repository-name shelfaware-frontend --region ap-southeast-1
+
+# 3. Deploy images
+chmod +x deploy-to-ecs.sh
+./deploy-to-ecs.sh
+
+# 4. Create ECS cluster and services
+# Follow the detailed steps in ECS_DEPLOYMENT_README.md
+```
+
+### Manual Backend Deployment
+
+1. **Environment Setup**:
+   ```bash
+   cp .env.example .env
+   # Edit .env with your production values
+   ```
+
+2. **Required Environment Variables**:
+   ```env
+   OPENAI_API_KEY=your_openai_api_key_here
+   DATABASE_URL=postgresql://user:password@your-rds-endpoint:5432/shelfaware
+   COGNITO_REGION=your_cognito_region
+   COGNITO_USER_POOL_ID=your_user_pool_id
+   COGNITO_CLIENT_ID=your_client_id
+   COGNITO_CLIENT_SECRET=your_client_secret
+   ```
+
+3. **Database**:
+   - For production, use PostgreSQL (AWS RDS recommended)
+   - Update `DATABASE_URL` in `.env`
+
+4. **CORS Configuration**:
+   - Update `app/main.py` to include your production frontend domain in `allow_origins`
+   - Example: `"https://your-frontend-domain.com"`
+
+5. **Build and Run**:
+   ```bash
+   # Using Docker
+   docker build -t shelfaware-backend .
+   docker run -p 8000:8000 --env-file .env shelfaware-backend
+
+   # Or using uvicorn directly
+   pip install -r requirements.txt
+   uvicorn app.main:app --host 0.0.0.0 --port 8000
+   ```
+
+### Manual Frontend Deployment
+
+1. **Environment Setup**:
+   ```bash
+   cd ref_frontend
+   cp .env.example .env  # If exists, or create .env
+   ```
+
+2. **Update API URL**:
+   ```env
+   VITE_API_BASE_URL=https://your-backend-domain.com
+   ```
+
+3. **Build and Deploy**:
+   ```bash
+   npm install
+   npm run build
+
+   # Using Docker
+   docker build -t shelfaware-frontend .
+   docker run -p 80:80 shelfaware-frontend
+   ```
+
+### Infrastructure Recommendations
+
+- **Backend**: Deploy to AWS ECS, Google Cloud Run, or similar container service
+- **Frontend**: Deploy to AWS S3 + CloudFront, Vercel, or Netlify
+- **Database**: Use AWS RDS (PostgreSQL) or Google Cloud SQL for production
+- **Authentication**: Ensure Cognito is properly configured with correct user pools
+
+### Security Considerations
+
+- Use HTTPS in production
+- Store secrets securely (AWS Secrets Manager, etc.)
+- Configure proper CORS policies
+- Set up monitoring and logging
+- Regular security updates for dependencies
+
 ## Troubleshooting
 
 ### Scheduler not starting
