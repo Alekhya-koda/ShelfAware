@@ -138,7 +138,7 @@ Generate only the synopsis without any additional commentary:"""
             
             # Calculate hash of current user synopses content
             user_content = "|".join(sorted([s.strip() for s in user_synopses if s.strip()]))
-            current_hash = hashlib.md5(user_content.encode()).hexdigest()
+            current_hash = hashlib.md5(user_content.encode(), usedforsecurity=False).hexdigest()
             
             # If current synopsis contains a hash marker, check if synopses changed
             # Otherwise, always update if we have new synopses
@@ -163,7 +163,7 @@ Generate only the synopsis without any additional commentary:"""
     def _build_user_content_hash(self, user_synopses: list[str]) -> str:
         normalized = sorted([s.strip() for s in user_synopses if s and s.strip()])
         joined = "|".join(normalized)
-        return hashlib.md5(joined.encode()).hexdigest()
+        return hashlib.md5(joined.encode(), usedforsecurity=False).hexdigest()
 
     def _upsert_pending_moderation(
         self,
