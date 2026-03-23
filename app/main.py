@@ -68,18 +68,16 @@ app = FastAPI(
 )
 
 # Configure CORS to allow frontend requests
+# Use environment variable CORS_ORIGINS to customize on deploy (comma-separated values)
+# Default includes local dev and both static host ports (80 + 8000).
+cors_origins = os.getenv(
+    "CORS_ORIGINS",
+    "http://localhost:4173,http://localhost:4176,http://localhost:5173,http://localhost:5174,http://localhost:5175,http://localhost:5176,http://localhost:3000,http://54.179.230.205,http://54.179.230.205:80,http://54.179.230.205:8000"
+).split(",")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",  # Keep for local development
-        "http://localhost:5174",  # Keep for local development
-        "http://localhost:5175",  # Keep for local development
-        "http://localhost:5176",  # Keep for local development
-        "http://localhost:3000",  # Keep for local development
-        # Add your production frontend domain here, e.g.:
-        # "https://your-frontend-domain.com",
-        # "https://www.your-frontend-domain.com"
-    ],
+    allow_origins=cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
