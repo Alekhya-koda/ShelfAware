@@ -262,9 +262,9 @@ class ApiService {
   }
 
   // Auth API
-  //Update /auth/login
+  //Remove slash for /auth/login
   async login(email: string, password: string): Promise<LoginResponse> {
-    return this.request('/auth/login/', {
+    return this.request('/auth/login', {
       method: 'POST',
       body: JSON.stringify({ email, password }),
     });
