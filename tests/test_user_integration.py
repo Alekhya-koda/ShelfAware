@@ -1,6 +1,8 @@
 import pytest
 from unittest.mock import MagicMock
 from jose import jwt
+from botocore.exceptions import ClientError
+import requests
 
 from app.services.cognito_service import CognitoService, RoleChecker
 from app.exceptions import ServiceException
@@ -27,6 +29,7 @@ def mock_cognito(mocker):
         NotAuthorizedException = type("NotAuthorizedException", (Exception,), {})
         UserNotConfirmedException = type("UserNotConfirmedException", (Exception,), {})
         CodeMismatchException = type("CodeMismatchException", (Exception,), {})
+        ExpiredCodeException = type("ExpiredCodeException", (Exception,), {})
         UserNotFoundException = type("UserNotFoundException", (Exception,), {})
         InvalidPasswordException = type("InvalidPasswordException", (Exception,), {})
         LimitExceededException = type("LimitExceededException", (Exception,), {})
@@ -90,6 +93,27 @@ def test_confirm_user_failure(mock_cognito):
     assert exc.value.status_code == 400
 
 
+def test_confirm_user_expired_code(mock_cognito):
+    mock_cognito.client.confirm_sign_up.side_effect = mock_cognito.client.exceptions.ExpiredCodeException("Expired")
+    with pytest.raises(ServiceException) as exc:
+        mock_cognito.confirm_user("test@example.com", "wrong_code")
+    assert exc.value.status_code == 400
+
+
+def test_confirm_user_not_found(mock_cognito):
+    mock_cognito.client.confirm_sign_up.side_effect = mock_cognito.client.exceptions.UserNotFoundException("Missing")
+    with pytest.raises(ServiceException) as exc:
+        mock_cognito.confirm_user("missing@example.com", "wrong_code")
+    assert exc.value.status_code == 404
+
+
+def test_confirm_user_generic_error(mock_cognito):
+    mock_cognito.client.confirm_sign_up.side_effect = Exception("unexpected")
+    with pytest.raises(ServiceException) as exc:
+        mock_cognito.confirm_user("test@example.com", "wrong_code")
+    assert exc.value.status_code == 500
+
+
 # --- Tests for authenticate_user ---
 def test_authenticate_user_success(mock_cognito):
     """Test successful login."""
@@ -121,6 +145,13 @@ def test_authenticate_user_not_confirmed(mock_cognito):
     assert exc.value.status_code == 403
 
 
+def test_authenticate_user_generic_error(mock_cognito):
+    mock_cognito.client.initiate_auth.side_effect = Exception("unexpected")
+    with pytest.raises(ServiceException) as exc:
+        mock_cognito.authenticate_user("test@example.com", "Pass123!")
+    assert exc.value.status_code == 500
+
+
 # --- Tests for forgot_password ---
 def test_initiate_forgot_password_success(mock_cognito):
     """Test requesting a password reset code."""
@@ -144,6 +175,50 @@ def test_confirm_forgot_password_failure(mock_cognito):
     with pytest.raises(ServiceException) as exc:
         mock_cognito.confirm_forgot_password("test@example.com", "000000", "NewPass123!")
     assert exc.value.status_code == 400
+
+
+def test_confirm_forgot_password_expired_code(mock_cognito):
+    mock_cognito.client.confirm_forgot_password.side_effect = mock_cognito.client.exceptions.ExpiredCodeException(
+        "Expired"
+    )
+    with pytest.raises(ServiceException) as exc:
+        mock_cognito.confirm_forgot_password("test@example.com", "000000", "NewPass123!")
+    assert exc.value.status_code == 400
+
+
+def test_confirm_forgot_password_invalid_password(mock_cognito):
+    mock_cognito.client.confirm_forgot_password.side_effect = mock_cognito.client.exceptions.InvalidPasswordException(
+        "Policy"
+    )
+    with pytest.raises(ServiceException) as exc:
+        mock_cognito.confirm_forgot_password("test@example.com", "000000", "bad")
+    assert exc.value.status_code == 400
+
+
+def test_confirm_forgot_password_user_not_found(mock_cognito):
+    mock_cognito.client.confirm_forgot_password.side_effect = mock_cognito.client.exceptions.UserNotFoundException(
+        "Missing"
+    )
+    with pytest.raises(ServiceException) as exc:
+        mock_cognito.confirm_forgot_password("missing@example.com", "000000", "NewPass123!")
+    assert exc.value.status_code == 404
+
+
+def test_confirm_forgot_password_client_error(mock_cognito):
+    mock_cognito.client.confirm_forgot_password.side_effect = ClientError(
+        {"Error": {"Code": "InvalidParameterException", "Message": "Bad request"}},
+        "ConfirmForgotPassword",
+    )
+    with pytest.raises(ServiceException) as exc:
+        mock_cognito.confirm_forgot_password("test@example.com", "000000", "NewPass123!")
+    assert exc.value.status_code == 400
+
+
+def test_confirm_forgot_password_generic_exception(mock_cognito):
+    mock_cognito.client.confirm_forgot_password.side_effect = Exception("boom")
+    with pytest.raises(ServiceException) as exc:
+        mock_cognito.confirm_forgot_password("test@example.com", "000000", "NewPass123!")
+    assert exc.value.status_code == 500
 
 
 # --- Tests for validate_token ---
@@ -174,6 +249,46 @@ def test_validate_token_expired(mock_cognito, mocker):
     assert exc.value.status_code == 401
 
 
+def test_validate_token_jwt_error(mock_cognito, mocker):
+    mocker.patch("app.services.cognito_service.jwt.get_unverified_header", return_value={"kid": "123"})
+    mocker.patch("app.services.cognito_service.jwt.decode", side_effect=jwt.JWTError("bad token"))
+    with pytest.raises(ServiceException) as exc:
+        mock_cognito.validate_token(DummyAuth())
+    assert exc.value.status_code == 401
+
+
+def test_jwks_keys_uses_cached_value_after_first_fetch(mock_cognito, mocker):
+    mocked_fetch = mocker.patch.object(
+        mock_cognito,
+        "_get_cognito_jwks",
+        return_value=[{"kid": "123", "alg": "RS256"}],
+    )
+
+    first = mock_cognito.jwks_keys
+    second = mock_cognito.jwks_keys
+
+    assert first == [{"kid": "123", "alg": "RS256"}]
+    assert second == first
+    assert mocked_fetch.call_count == 1
+
+
+def test_get_cognito_jwks_non_200_raises_service_exception(mock_cognito, mocker):
+    mock_response = MagicMock()
+    mock_response.status_code = 500
+    mocker.patch("app.services.cognito_service.requests.get", return_value=mock_response)
+
+    with pytest.raises(ServiceException) as exc:
+        mock_cognito._get_cognito_jwks()
+
+    assert exc.value.status_code == 500
+    assert "Unable to fetch JWKS" in exc.value.detail
+
+
+def test_get_cognito_jwks_request_exception_returns_empty_list(mock_cognito, mocker):
+    mocker.patch("app.services.cognito_service.requests.get", side_effect=requests.RequestException("network"))
+    assert mock_cognito._get_cognito_jwks() == []
+
+
 # --- Tests for check_user_role & RoleChecker ---
 def test_check_user_role_success(mock_cognito):
     claims = {"cognito:groups": ["Users", "Admins"]}
@@ -194,3 +309,12 @@ def test_role_checker_call(mock_cognito, mocker):
 
     result = checker(auth=DummyAuth(), cognito_service=mock_cognito)
     assert "cognito:groups" in result
+
+
+def test_role_checker_without_auth_raises_403(mock_cognito):
+    checker = RoleChecker("Users")
+
+    with pytest.raises(ServiceException) as exc:
+        checker(auth=None, cognito_service=mock_cognito)
+
+    assert exc.value.status_code == 403
