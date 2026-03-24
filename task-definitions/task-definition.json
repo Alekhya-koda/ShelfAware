@@ -1,0 +1,57 @@
+{
+  "family": "bookapp_task",
+  "executionRoleArn": "arn:aws:iam::111501711838:role/ecsTaskExecutionRole",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": [
+    "FARGATE"
+  ],
+  "cpu": "1024",
+  "memory": "3072",
+  "containerDefinitions": [
+    {
+      "name": "bookcontainer",
+      "image": "docker.io/zhengsenlim/shelfaware_app:latest",
+      "essential": true,
+      "portMappings": [
+        {
+          "containerPort": 8000,
+          "hostPort": 8000,
+          "protocol": "tcp"
+        }
+      ],
+      "environment": [
+        {
+          "name": "COGNITO_REGION",
+          "value": "ap-southeast-2"
+        }
+      ],
+      "secrets": [
+        {
+          "name": "OPENAI_API_KEY",
+          "valueFrom": "arn:aws:secretsmanager:ap-southeast-1:111501711838:secret:prod/MSSProject-HVBYFG:OPENAI_API_KEY::"
+        },
+        {
+          "name": "COGNITO_USER_POOL_ID",
+          "valueFrom": "arn:aws:secretsmanager:ap-southeast-1:111501711838:secret:prod/MSSProject-HVBYFG:COGNITO_USER_POOL_ID::"
+        },
+        {
+          "name": "COGNITO_CLIENT_ID",
+          "valueFrom": "arn:aws:secretsmanager:ap-southeast-1:111501711838:secret:prod/MSSProject-HVBYFG:COGNITO_CLIENT_ID::"
+        },
+        {
+          "name": "COGNITO_CLIENT_SECRET",
+          "valueFrom": "arn:aws:secretsmanager:ap-southeast-1:111501711838:secret:prod/MSSProject-HVBYFG:COGNITO_CLIENT_SECRET::"
+        }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/bookapp_task",
+          "awslogs-create-group": "true",
+          "awslogs-region": "ap-southeast-1",
+          "awslogs-stream-prefix": "ecs"
+        }
+      }
+    }
+  ]
+}
