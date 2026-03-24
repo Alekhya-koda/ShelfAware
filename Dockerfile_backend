@@ -13,11 +13,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 # 1. Copy the rest of your application code
 COPY . /shelfaware_app
 
-# 2. Copy the database file specifically to the WORKDIR (/app)
-COPY app.db ./app.db
-
 # 3. Give the container permission to read/write to the DB file
 # SQLite needs to create temporary "journal" files in the same folder.
+RUN chmod 777 /app
 RUN chmod 666 /shelfaware_app/app.db
 
 # Expose port 8000 (FastAPI default)
