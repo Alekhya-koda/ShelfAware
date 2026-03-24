@@ -1,0 +1,11 @@
+venv/
+.venv/
+__pycache__/
+*.pyc
+.git/
+.github/
+ref_frontend/node_modules/
+ref_frontend/dist/
+.pytest_cache/
+htmlcov/
+.env

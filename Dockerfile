@@ -23,7 +23,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip -r requirements.txt
 
 # Copy backend application code
-COPY ./app ./app
+COPY . ./app
 
 # Copy the built frontend assets from the frontend-builder stage
 COPY --from=frontend-builder /app/dist ./app/static
