@@ -18,11 +18,18 @@ from app.schemas.book import BookCreate, BookUpdate, BookRead
 from app.dependencies.services import get_book_service
 from app.dependencies.auth import get_current_user
 from app.dependencies.roles import required_admin_role
+from app.dependencies.db import get_db
 
 
 @pytest.fixture
-def client():
-    return TestClient(app)
+def client(db):
+    def override_get_db():
+        yield db
+
+    app.dependency_overrides[get_db] = override_get_db
+
+    with TestClient(app) as test_client:
+        yield test_client
 
 
 @pytest.fixture

@@ -143,6 +143,9 @@ def trigger_manual_sync():
 # Only mount if the static directory exists AND contains an index.html file
 # indicating that the frontend has been built and included (Full-stack mode).
 static_dir = "app/static"
+if not os.path.exists(static_dir):
+    os.makedirs(static_dir)
+
 if os.path.exists(os.path.join(static_dir, "index.html")):
     app.mount("/", SPAStaticFiles(directory=static_dir), name="static-app")
     logger.info("Static files mounted successfully (Full-stack mode)")
