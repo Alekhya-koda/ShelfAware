@@ -1,4 +1,4 @@
-name: Python CI/CD with Docker
+name: Python CI/CD with Docker (both backend and full)
 
 on:
   push:
