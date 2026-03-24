@@ -112,7 +112,6 @@ class TestBookRoutes:
         db.add(Genre(name="Fantasy"))
         db.add(Genre(name="Biography"))
         db.commit()
-        db.expire_all()
 
         response = client.get("/books/genres")
 
