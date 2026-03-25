@@ -285,6 +285,7 @@ class ApiService {
   }
 
   // Auth API
+  //Remove slash for /auth/login
   async login(email: string, password: string): Promise<LoginResponse> {
     return this.request('/auth/login', {
       method: 'POST',

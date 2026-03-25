@@ -1,6 +1,6 @@
 # Stage 1: Build the frontend application
 FROM node:20-alpine AS frontend-builder
-WORKDIR /app
+WORKDIR /build
 
 # Copy package files and install dependencies
 COPY ref_frontend/package*.json ./
@@ -22,11 +22,22 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip -r requirements.txt
 
-# Copy backend application code
-COPY ./app ./app
+# 1. Copy the application code and data
+COPY . .
 
-# Copy the built frontend assets from the frontend-builder stage
-COPY --from=frontend-builder /app/dist ./app/static
+RUN cp app.db ./app/app.db || true
+
+# 2. Ensure the static directory exists for the frontend assets
+RUN mkdir -p app/static
+
+# 3. Copy the built frontend assets from the frontend-builder stage
+COPY --from=frontend-builder /build/dist ./app/static
+
+# 4. Give the container permission to read/write to the DB file
+# SQLite needs to create temporary "journal" files in the same folder.
+RUN chmod 777 /app
+RUN chmod 666 /app/app.db /app/app/app.db || true
+# RUN chmod -R 777 /app/chromadb
 
 # Expose the port the app runs on
 EXPOSE 8000
