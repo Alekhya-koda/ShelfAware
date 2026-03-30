@@ -9,6 +9,8 @@ ShelfAware is a FastAPI-based application for managing book bookshelves with int
 - **Smart Comparison**: Intelligently compares existing community synopses with new user input
 - **Book Management**: Track books with metadata including authors, genres, and publication info
 - **Bookshelf Management**: Maintain personal bookshelves with reading status tracking
+- **Book Recommendation**: Recommends books based on user's mood via a Chatbot interface
+- **Collaborative Filtering**: Finds users who has a very similar book prefernces and recommends their most hoghly rated books to you
 
 ## Project Structure
 
